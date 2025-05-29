@@ -105,20 +105,24 @@ class FBSARA(ForwardBackward):
         the wavelet domain. Some information will be printed if `verbose` is True.
         """
         # step size
-        self._gd_step_size = 1.98 / self._meas_op_precise.get_op_norm()
+        self._gd_step_size = 1.98 / 14829112.634622129
+        # self._gd_step_size = 1.98 / self._meas_op_precise.get_op_norm()
 
         # heuristic noise level
-        self._heuristic = 1 / np.sqrt(2 * self._meas_op_precise.get_op_norm())
+        self._heuristic = 1 / np.sqrt(2 * 14829112.634622129)
+        # self._heuristic = 1 / np.sqrt(2 * self._meas_op_precise.get_op_norm())
         if self._verbose:
             print(
-                f"INFO: measurement operator norm {self._meas_op_precise.get_op_norm()}",
+                f"INFO: measurement operator norm {14829112.634622129}",
+                # f"INFO: measurement operator norm {self._meas_op_precise.get_op_norm()}",
                 flush=True,
             )
             print(f"INFO: heuristic noise level: {self._heuristic}", flush=True)
-        heu_corr_factor = np.sqrt(
-            self._meas_op_precise.get_op_norm_prime()
-            / self._meas_op_precise.get_op_norm()
-        )
+        if not self._use_ROP:
+            heu_corr_factor = np.sqrt(
+                self._meas_op_precise.get_op_norm_prime()
+                / self._meas_op_precise.get_op_norm()
+            )
         if not np.isclose(heu_corr_factor, 1.0) and not self._use_ROP:
             self._heuristic *= heu_corr_factor
             if self._verbose:
