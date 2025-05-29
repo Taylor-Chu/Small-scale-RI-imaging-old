@@ -93,7 +93,8 @@ def load_data_to_tensor(
     if use_ROP:
         data["Q"] = 27
         num_data = 0
-        freqs = data_holo["freqs"].squeeze()
+        freqs = [data_holo["freqs"].squeeze()[0]]
+        # freqs = data_holo["freqs"].squeeze()
         
         for i_f, f in enumerate(freqs):
             data_tmp = loadmat(

@@ -99,7 +99,6 @@ class ForwardBackward(Optimiser):
             backward_start_event = torch.cuda.Event(enable_timing=True)
             backward_end_event = torch.cuda.Event(enable_timing=True)
             torch.cuda.synchronize()
-
         self._t_total = timer()
         for self._iter in range(self._start_iter, self._im_max_itr):
             self._t_iter = timer()
