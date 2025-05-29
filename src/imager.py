@@ -56,7 +56,7 @@ def imager(param_optimiser: Dict, param_measop: Dict, param_proxop: Dict) -> Non
     )
 
     if param_measop["use_ROP"]:
-        from .mrop_ri_measurement_operator import weighting_correction
+        from .mrop_ri_measurement_operator.utils import weighting_correction
 
         if param_measop["ROP_param"]["Q"] is None:
             assert "Q" in data, "number of anntennas Q is not in data and not provided"
