@@ -123,6 +123,8 @@ class FBSARA(ForwardBackward):
                 self._meas_op_precise.get_op_norm_prime()
                 / self._meas_op_precise.get_op_norm()
             )
+        else:
+            heu_corr_factor = 1.0
         if not np.isclose(heu_corr_factor, 1.0) and not self._use_ROP:
             self._heuristic *= heu_corr_factor
             if self._verbose:
