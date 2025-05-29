@@ -141,6 +141,9 @@ def set_imaging_params_ri(
     else:
         param_measop["nufft_mode"] = "table"
         
+    # 3c273 real data
+    param_optimiser["data_path"] = param_general.get("data_path", None)
+        
     # MROP
     param_measop["ROP_type"] = param_general.get("ROP_type", None)
     param_measop["use_ROP"] = False
@@ -157,6 +160,8 @@ def set_imaging_params_ri(
             "M": param_general["ROP_M"],
             "rv_type": param_general["ROP_rv_type"],
             "ROP_seed": param_general.get("ROP_seed", 1),
+            "ROP_batchwise": param_general.get("ROP_batchwise", False),
+            "ROP_batch_step": param_general.get("ROP_batch_step", 1)
         }
         if param_measop["use_ROP"]:
             assert not param_general["approx_meas_op"], "approximate measurement operator is currently not supported for MROP/CROP."

@@ -10,7 +10,8 @@ from astropy.io import fits
 from .prox_operator import ProxOpAIRI, ProxOpElipse, ProxOpSARAPos
 from .optimiser import FBAIRI, PDAIRI, FBSARA
 from .utils import gen_imaging_weight
-from .ri_measurement_operator.pysrc.utils.io import load_data_to_tensor
+# from .ri_measurement_operator.pysrc.utils.io import load_data_to_tensor
+from .utils.io import load_data_to_tensor
 
 
 def imager(param_optimiser: Dict, param_measop: Dict, param_proxop: Dict) -> None:
@@ -38,15 +39,17 @@ def imager(param_optimiser: Dict, param_measop: Dict, param_proxop: Dict) -> Non
     # initialisation
     data = load_data_to_tensor(
         param_optimiser["data_file"],
-        super_resolution=param_measop["superresolution"],
-        image_pixel_size=param_measop["im_pixel_size"],
-        data_weighting=param_measop["flag_data_weighting"],
-        load_weight=param_measop["weight_load"],
         img_size=param_measop["img_size"],
+        data_path=param_optimiser["data_path"],
+        super_resolution=param_measop["superresolution"],
+        data_weighting=param_measop["flag_data_weighting"],
+        image_pixel_size=param_measop["im_pixel_size"],
+        load_weight=param_measop["weight_load"],
         uv_unit="radians",
         weight_type=param_measop["weight_type"],
         weight_gridsize=param_measop["weight_gridsize"],
         weight_robustness=param_measop["weight_robustness"],
+        use_ROP=param_measop["use_ROP"],
         dtype=param_measop["dtype"],
         device=param_measop["device"],
         verbose=param_optimiser["verbose"],
@@ -74,7 +77,10 @@ def imager(param_optimiser: Dict, param_measop: Dict, param_proxop: Dict) -> Non
         if not param_measop["use_ROP"]:
             nufft_op = MeasOpPynufft
         else:
-            from .mrop_ri_measurement_operator import create_meas_op_ROP
+            if param_measop["ROP_param"]["ROP_batchwise"]:
+                from .mrop_ri_measurement_operator import create_meas_op_ROP_batchwise as create_meas_op_ROP
+            else:
+                from .mrop_ri_measurement_operator import create_meas_op_ROP
 
             nufft_op = create_meas_op_ROP(MeasOpPynufft)
 
@@ -82,6 +88,9 @@ def imager(param_optimiser: Dict, param_measop: Dict, param_proxop: Dict) -> Non
             ROP_param=param_measop["ROP_param"],
             u=data["u"],
             v=data["v"],
+            ant1=data["ant1"],
+            ant2=data["ant2"],
+            batches=data["batches"],
             img_size=param_measop["img_size"],
             natural_weight=data["nW"],
             image_weight=data["nWimag"],
@@ -97,7 +106,10 @@ def imager(param_optimiser: Dict, param_measop: Dict, param_proxop: Dict) -> Non
         if not param_measop["use_ROP"]:
             nufft_op = MeasOpTkbNUFFT
         else:
-            from .mrop_ri_measurement_operator import create_meas_op_ROP
+            if param_measop["ROP_param"]["ROP_batchwise"]:
+                from .mrop_ri_measurement_operator import create_meas_op_ROP_batchwise as create_meas_op_ROP
+            else:
+                from .mrop_ri_measurement_operator import create_meas_op_ROP
 
             nufft_op = create_meas_op_ROP(MeasOpTkbNUFFT)
 
@@ -105,6 +117,9 @@ def imager(param_optimiser: Dict, param_measop: Dict, param_proxop: Dict) -> Non
             ROP_param=param_measop["ROP_param"],
             u=data["u"],
             v=data["v"],
+            ant1=data["ant1"],
+            ant2=data["ant2"],
+            batches=data["batches"],
             img_size=param_measop["img_size"],
             natural_weight=data["nW"],
             image_weight=data["nWimag"],
@@ -123,7 +138,10 @@ def imager(param_optimiser: Dict, param_measop: Dict, param_proxop: Dict) -> Non
         if not param_measop["use_ROP"]:
             nufft_op = MeasOpPytorchFinufft
         else:
-            from .mrop_ri_measurement_operator import create_meas_op_ROP
+            if param_measop["ROP_param"]["ROP_batchwise"]:
+                from .mrop_ri_measurement_operator import create_meas_op_ROP_batchwise as create_meas_op_ROP
+            else:
+                from .mrop_ri_measurement_operator import create_meas_op_ROP
 
             nufft_op = create_meas_op_ROP(MeasOpPytorchFinufft)
 
@@ -131,12 +149,17 @@ def imager(param_optimiser: Dict, param_measop: Dict, param_proxop: Dict) -> Non
             ROP_param=param_measop["ROP_param"],
             u=data["u"],
             v=data["v"],
+            ant1=data["ant1"],
+            ant2=data["ant2"],
+            batches=data["batches"],
             img_size=param_measop["img_size"],
             natural_weight=data["nW"],
             image_weight=data["nWimag"],
             device=param_measop["device"],
             dtype=param_measop["dtype"],
         )
+        
+    data["y"] = data["y"] * data["nW"] * data["nWimag"]
 
     if param_measop["use_ROP"]:
         print(f"INFO: data size before {param_measop['ROP_param']['ROP_type']} is {data['y'].numel()}")

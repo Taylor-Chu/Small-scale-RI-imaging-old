@@ -50,3 +50,5 @@ logs/
 !requirements.txt
 !tutorial_airi_python.ipynb
 !tutorial_usara_python.ipynb
+
+local/

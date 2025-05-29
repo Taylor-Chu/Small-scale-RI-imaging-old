@@ -13,19 +13,26 @@ from scipy.io import loadmat
 from scipy.io.matlab import matfile_version
 from torch.utils.data import Dataset
 
+from ..ri_measurement_operator.pysrc.utils.gen_imaging_weights import gen_imaging_weights
 
-def load_data_to_tensor_holo(
+
+def load_data_to_tensor(
     main_data_file: str,
-    dirty_file_path: str,
-    data_size: int,
     img_size: tuple,
-    super_resolution: float = 1.5,
     data_path: str = None,
-    dirac_peak: float = None,
+    # dirty_file_path: str,
+    # data_size: int,
+    super_resolution: float = 1.5,
+    # dirac_peak: float = None,
+    data_weighting: bool = True,
+    weight_type: str = "briggs",
+    weight_gridsize: float = 2.0,
+    weight_robustness: float = 0.0,
     use_ROP: bool = False,
     dtype: torch.dtype = torch.float64,
     device: torch.device = torch.device("cpu"),
     data: dict = None,
+    **kwargs,
 ):
     """Read u, v and imweight from specified path.
 
@@ -81,10 +88,14 @@ def load_data_to_tensor_holo(
                     print("Type not implemented to be read here", h5obj)
     else:
         loadmat(main_data_file, mdict=data_holo)
+        
 
-    if not use_ROP:
+    if use_ROP:
+        data["Q"] = 27
         num_data = 0
-        for i_f, f in enumerate(data_holo["freqs"].squeeze()):
+        freqs = data_holo["freqs"].squeeze()
+        
+        for i_f, f in enumerate(freqs):
             data_tmp = loadmat(
                 os.path.join(data_path, f"273-X08_data_ch_{i_f+1}.mat"), variable_names=["data_I"]
             )
@@ -94,9 +105,15 @@ def load_data_to_tensor_holo(
         data["v"] = np.zeros((1, 1, num_data), dtype=np.float64)
         data["y"] = np.zeros((1, 1, num_data), dtype=np.complex128)
         data["nW"] = np.zeros((1, 1, num_data), dtype=np.float64)
+                
+        data["batches"] = np.zeros((num_data), dtype=int)
+        data["ant1"] = np.zeros((num_data), dtype=int)
+        data["ant2"] = np.zeros((num_data), dtype=int)
         counter = 0
-        for i_f, f in enumerate(data_holo["freqs"].squeeze()):
+        for i_f, f in enumerate(freqs):
             data_tmp = loadmat(os.path.join(data_path, f"273-X08_data_ch_{i_f+1}.mat"))
+            if i_f == 0:
+                B = len(np.unique(data_tmp["batches_flagged"]))
             new_counter = counter + data_tmp["data_I"].size
             data["u"][0, 0, counter:new_counter] = data_holo["uvw"][:, 0][data_tmp["flag"].squeeze() == 1] / (
                 speed_of_light / f
@@ -106,8 +123,15 @@ def load_data_to_tensor_holo(
             )
             data["y"][0, 0, counter:new_counter] = data_tmp["data_I"].squeeze()
             data["nW"][0, 0, counter:new_counter] = data_tmp["weightsNat"].squeeze()
+            
+            data["batches"][counter:new_counter] = data_tmp["batches_flagged"].squeeze().astype(int) + B * i_f
+            data["ant1"][counter:new_counter] = data_tmp["ant1_flagged"].squeeze().astype(int)
+            data["ant2"][counter:new_counter] = data_tmp["ant2_flagged"].squeeze().astype(int)
+            
             counter = new_counter
-
+            
+        data["B"] = B * len(freqs)
+        
         max_proj_baseline = np.max(np.sqrt(data["u"] ** 2 + data["v"] ** 2))
         data["max_proj_baseline"] = max_proj_baseline
         spatial_bandwidth = 2 * max_proj_baseline
@@ -136,14 +160,15 @@ def load_data_to_tensor_holo(
             )
             num_data += data_tmp["data_I"].size
 
-        data["batches"] = data_holo["batches_flagged"]
-        data["ant1"] = data_holo["ant1_flagged"]
-        data["ant2"] = data_holo["ant2_flagged"]
-
         data["u"] = np.zeros((1, 1, num_data), dtype=np.float64)
         data["v"] = np.zeros((1, 1, num_data), dtype=np.float64)
         data["y"] = np.zeros((1, 1, num_data), dtype=np.complex128)
         data["nW"] = np.zeros((1, 1, num_data), dtype=np.float64)
+        
+        data["batches"] = None
+        data["ant1"] = None
+        data["ant2"] = None
+        
         counter = 0
         for i_f, f in enumerate(data_holo["freqs"].squeeze()):
             data_ch_i_f = loadmat(os.path.join(data_path, f"273-X08_data_ch_{i_f+1}.mat"))
@@ -179,5 +204,33 @@ def load_data_to_tensor_holo(
 
     del data_holo  # , tmp, uniques, counts
     gc.collect()
+    
+    if data_weighting:
+        print(f"INFO: computing {weight_type} imaging weights...", flush=True)
+        if weight_type == "briggs":
+            if "weight_robustness" in data:
+                weight_robustness = data["weight_robustness"].item()
+                print(f"INFO: load weight_robustness from data file {weight_robustness}", flush=True)
+            else:
+                print(f"INFO: weight_robustness {weight_robustness}", flush=True)
+        else:
+            weight_robustness = 0.0
+        data["nWimag"] = gen_imaging_weights(
+            data["u"].clone(),
+            data["v"].clone(),
+            data["nW"],
+            img_size,
+            weight_type=weight_type,
+            weight_gridsize=weight_gridsize,
+            weight_robustness=weight_robustness,
+        ).numpy(force=True)
+    else:
+        print("INFO: imaging weights will not be applied.", flush=True)
+        data["nWimag"] = [
+            1.0,
+        ]
+    data["nWimag"] = torch.tensor(data["nWimag"], dtype=dtype, device=device).view(1, 1, -1)
+        
+    # data["y"] -= 17.7
 
     return data
