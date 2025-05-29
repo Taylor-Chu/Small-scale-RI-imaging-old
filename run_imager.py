@@ -32,6 +32,9 @@ def parsing_arguments() -> argparse.Namespace:
         "--data_file", type=str, default=None, help="path of the datafile"
     )
     parser.add_argument(
+        "--data_path", type=str, default=None, help="path of the data"
+    )
+    parser.add_argument(
         "--result_path", type=str, default=None, help="path of the result folder"
     )
     parser.add_argument(
