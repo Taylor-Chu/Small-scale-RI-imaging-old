@@ -114,7 +114,10 @@ def load_data_to_tensor(
                 print(f"INFO: Using {nfreqs} frequency channels.", flush=True)
                 print(f"INFO: Using frequency channels {freq_num} to {freq_num + nfreqs - 1}: {freqs}", flush=True)
         else:
-            freqs = data_holo["freqs"].squeeze()
+            if nfreqs is not None:
+                freqs = data_holo["freqs"].squeeze()[:nfreqs]
+            else:
+                freqs = data_holo["freqs"].squeeze()
 
         if use_ROP:
             data["Q"] = 27
