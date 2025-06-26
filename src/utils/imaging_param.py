@@ -64,7 +64,7 @@ def set_imaging_params_ri(
     # super-resolution factor
     if (
         param_general.get("superresolution", None)
-        and param_general["superresolution"] >= 1.0
+        # and param_general["superresolution"] >= 1.0
     ):
         param_measop["superresolution"] = float(param_general["superresolution"])
     else:
@@ -142,8 +142,21 @@ def set_imaging_params_ri(
         param_measop["nufft_mode"] = "table"
         
     # 3c273 real data
+    param_optimiser["target"] = param_general.get("target", None)
     param_optimiser["data_path"] = param_general.get("data_path", None)
+    param_optimiser["freq_num"] = param_general.get("freq_num", None)
+    param_optimiser["nfreqs"] = param_general.get("nfreqs", None)
+    param_optimiser["vis_remove"] = param_general.get("vis_remove", None)
+    param_optimiser["dl_shift"] = param_general.get("dl_shift", None)
+    param_optimiser["dm_shift"] = param_general.get("dm_shift", None)
+    
+    # assert param_optimiser["im_dim_x_end"] - param_optimiser["im_dim_x_start"] == param_measop["img_size"][0], \
+    #     "im_dim_x_end - im_dim_x_start must equal to im_dim_x"
+    # assert param_optimiser["im_dim_y_end"] - param_optimiser["im_dim_y_start"] == param_measop["img_size"][1], \
+    #     "im_dim_y_end - im_dim_y_start must equal to im_dim_y"
         
+    # BDA
+    param_measop["use_BDA"] = param_general.get("use_BDA", False)
     # MROP
     param_measop["ROP_type"] = param_general.get("ROP_type", None)
     param_measop["use_ROP"] = False
@@ -161,12 +174,14 @@ def set_imaging_params_ri(
             "rv_type": param_general["ROP_rv_type"],
             "ROP_seed": param_general.get("ROP_seed", 1),
             "ROP_batchwise": param_general.get("ROP_batchwise", False),
-            "ROP_batch_step": param_general.get("ROP_batch_step", 1)
+            "ROP_batch_step": param_general.get("ROP_batch_step", 1),
+            "weight_type": param_general.get("weight_type", None),
+            "ROP_vmap": param_general.get("ROP_vmap", False),
         }
         if param_measop["use_ROP"]:
             assert not param_general["approx_meas_op"], "approximate measurement operator is currently not supported for MROP/CROP."
             assert param_optimiser["algorithm"] == "usara", "MROP/CROP is currently only supported for uSARA."
-            assert param_measop["weight_type"] == "uniform", "MROP/CROP is currently only supported for uniform weighting."
+            # assert param_measop["weight_type"] == "uniform", "MROP/CROP is currently only supported for uniform weighting."
     else:
         raise ValueError(
             f"argument ROP_type {param_measop['ROP_type']} not supported. "

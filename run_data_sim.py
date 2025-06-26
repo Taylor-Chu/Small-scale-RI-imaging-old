@@ -6,7 +6,7 @@ from typing import Any, Dict, Optional
 import argparse
 import json
 
-from src.imager import imager
+from src.data_sim import data_sim
 from src.utils import set_imaging_params_ri
 
 
@@ -29,16 +29,20 @@ def parsing_arguments() -> argparse.Namespace:
         "--src_name", type=str, default=None, help="Initial reg parameter"
     )
     parser.add_argument(
+        "--sigma0", type=float, required=True, help="sigma0"
+    )
+    parser.add_argument(
+        "--sigma_range_min", type=float, default=None
+    )
+    parser.add_argument(
+        "--sigma_range_max", type=float, default=None
+    )
+    
+    parser.add_argument(
         "--data_file", type=str, default=None, help="path of the datafile"
     )
     parser.add_argument(
         "--data_path", type=str, default=None, help="path of the data"
-    )
-    parser.add_argument(
-        "--freq_num", type=int, default=None, help="specific freq number to load data from"
-    )
-    parser.add_argument(
-        "--vis_remove", type=float, default=None, help="deduct visibilities with this value"
     )
     parser.add_argument(
         "--result_path", type=str, default=None, help="path of the result folder"
@@ -169,11 +173,11 @@ if __name__ == "__main__":
         print_dict(param_optimiser, flush=True)
         print("  param_measop:", flush=True)
         print_dict(param_measop, flush=True)
-        print("  param_proxop:", flush=True)
-        print_dict(param_proxop, flush=True)
+        # print("  param_proxop:", flush=True)
+        # print_dict(param_proxop, flush=True)
         print(
             "________________________________________________________________\n",
             flush=True,
         )
 
-    imager(param_optimiser, param_measop, param_proxop)
+    data_sim(param_optimiser, param_measop, input_args.sigma0, input_args.sigma_range_min, input_args.sigma_range_max)

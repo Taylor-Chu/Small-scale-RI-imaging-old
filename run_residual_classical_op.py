@@ -6,7 +6,7 @@ from typing import Any, Dict, Optional
 import argparse
 import json
 
-from src.imager import imager
+from src.residual_classical_op import residual_classical_op
 from src.utils import set_imaging_params_ri
 
 
@@ -18,6 +18,9 @@ def parsing_arguments() -> argparse.Namespace:
         argparse.Namespace: Parsed command line arguments.
     """
     parser = argparse.ArgumentParser(description="imaging main parameters")
+    parser.add_argument(
+        "--rec_file", type=str, required=True, help="path of the reconstruction file"
+    )
     parser.add_argument(
         "-c",
         "--config",
@@ -33,12 +36,6 @@ def parsing_arguments() -> argparse.Namespace:
     )
     parser.add_argument(
         "--data_path", type=str, default=None, help="path of the data"
-    )
-    parser.add_argument(
-        "--freq_num", type=int, default=None, help="specific freq number to load data from"
-    )
-    parser.add_argument(
-        "--vis_remove", type=float, default=None, help="deduct visibilities with this value"
     )
     parser.add_argument(
         "--result_path", type=str, default=None, help="path of the result folder"
@@ -176,4 +173,4 @@ if __name__ == "__main__":
             flush=True,
         )
 
-    imager(param_optimiser, param_measop, param_proxop)
+    residual_classical_op(param_optimiser, param_measop, param_proxop, input_args.rec_file)

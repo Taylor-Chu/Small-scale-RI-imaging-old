@@ -70,6 +70,13 @@ class ForwardBackward(Optimiser):
         self._meas_bp = self._meas_op_precise.adjoint_op(self._meas).to(
             self._meas_op_precise.get_device()
         )
+        
+        # _dirac_tmp = torch.zeros_like(self._meas_bp)
+        # _img_size = self._meas_bp.shape[-2:]
+        # _dirac_tmp[..., _img_size[0] // 2, _img_size[1] // 2] = 17.7
+        # self._meas_bp = self._meas_bp - self._meas_op_precise.adjoint_op(self._meas_op_precise.forward_op(_dirac_tmp))
+        # print("INFO: Removing Dirac delta with peak value 17.7 from the dirty image (data).")
+        
         self._psf = self._meas_op_precise.get_psf()
         self._psf_peak = self._psf.max().item()
         fits.writeto(
