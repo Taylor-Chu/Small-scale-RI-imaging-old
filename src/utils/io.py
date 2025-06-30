@@ -105,17 +105,19 @@ def load_data_to_tensor(
                         print("Type not implemented to be read here", h5obj)
         else:
             loadmat(main_data_file, mdict=data_holo)
+            
         if freq_num is not None:
             if nfreqs is None:
                 freqs = [data_holo["freqs"].squeeze()[freq_num - 1]]
                 print(f"INFO: Using frequency channel {freq_num}: {freqs[0]} Hz", flush=True)
-            elif nfreqs > 1:
+            else:
                 freqs = data_holo["freqs"].squeeze()[freq_num - 1 : freq_num - 1 + nfreqs]
                 print(f"INFO: Using {nfreqs} frequency channels.", flush=True)
                 print(f"INFO: Using frequency channels {freq_num} to {freq_num + nfreqs - 1}: {freqs}", flush=True)
         else:
             if nfreqs is not None:
                 freqs = data_holo["freqs"].squeeze()[:nfreqs]
+                print(f"INFO: Using {nfreqs} frequency channels.", flush=True)
             else:
                 freqs = data_holo["freqs"].squeeze()
 
