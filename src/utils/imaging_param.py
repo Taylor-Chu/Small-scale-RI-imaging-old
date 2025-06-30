@@ -177,6 +177,7 @@ def set_imaging_params_ri(
             "ROP_batch_step": param_general.get("ROP_batch_step", 1),
             "weight_type": param_general.get("weight_type", None),
             "ROP_vmap": param_general.get("ROP_vmap", False),
+            "ROP_vmap_chunk_size": param_general.get("ROP_vmap_chunk_size", None),
         }
         if param_measop["use_ROP"]:
             assert not param_general["approx_meas_op"], "approximate measurement operator is currently not supported for MROP/CROP."
