@@ -372,8 +372,10 @@ def load_data_to_tensor(
     data["nWimag"] = torch.tensor(data["nWimag"], dtype=dtype, device=device).view(1, 1, -1)
 
     if vis_remove is not None:
+        print(f"INFO: max y before removing {vis_remove}: {data['y'].real.max().item()} + {data['y'].imag.max().item()}")
         data["y"] = data["y"] - vis_remove
         print(f"INFO: Removing {vis_remove} from the data.")
+        print(f"INFO: max y after removing {vis_remove}: {data['y'].real.max().item()} + {data['y'].imag.max().item()}")
 
     if dl_shift is not None and dm_shift is not None:
         print(

@@ -203,7 +203,7 @@ def imager(param_optimiser: Dict, param_measop: Dict, param_proxop: Dict) -> Non
             if param_measop["ROP_param"]["ROP_batchwise"]:
                 from .mrop_ri_measurement_operator import create_meas_op_ROP_batchwise as create_meas_op_ROP
             elif param_measop["ROP_param"]["ROP_vmap"]:
-            #     if param_optimiser["nfreqs"] is None or param_optimiser["nfreqs"] == 1:
+                # if param_optimiser["nfreqs"] is None or param_optimiser["nfreqs"] == 1:
                 from .mrop_ri_measurement_operator import create_meas_op_ROP_vmap as create_meas_op_ROP
                 # else:
                 #     from .mrop_ri_measurement_operator import create_meas_op_ROP_vmap_mf as create_meas_op_ROP
@@ -297,16 +297,14 @@ def imager(param_optimiser: Dict, param_measop: Dict, param_proxop: Dict) -> Non
 
         # preconditioning weight
         if param_optimiser["precond_flag"]:
-            from .ri_measurement_operator.pysrc.utils.gen_imaging_weights import gen_imaging_weights
             precond_weight = (
                 torch.from_numpy(
-                    gen_imaging_weights(
-                        data["u"].clone(),
-                        data["v"].clone(),
-                        data["nW"].clone(),
+                    gen_imaging_weight(
+                        data["u"].cpu().numpy(),
+                        data["v"].cpu().numpy(),
                         param_measop["img_size"],
                         weight_type="uniform",
-                        weight_gridsize=2,
+                        grid_size=2,
                     ).reshape(1, 1, -1)
                 )
                 ** 2
