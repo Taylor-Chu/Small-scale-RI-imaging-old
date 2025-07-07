@@ -14,7 +14,8 @@ from .utils import gen_noise, gen_noise
 
 from .ri_measurement_operator.pysrc.measOperator.meas_op_nufft_pytorch_finufft import MeasOpPytorchFinufft
 from .ri_measurement_operator.pysrc.utils.gen_imaging_weights import gen_imaging_weights
-from .ri_measurement_operator.pysrc.utils.io import load_data_to_tensor
+from .utils.io_data_sim import load_data_to_tensor
+# from .ri_measurement_operator.pysrc.utils.io import load_data_to_tensor
 
 
 def data_sim(

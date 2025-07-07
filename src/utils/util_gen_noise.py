@@ -71,37 +71,38 @@ def compute_tau(
     print(f'sigma_range_min = {sigma_range_min:.4e}; sigma_range_max = {sigma_range_max:.4e}')
     print(f'uv_id: {data["uv_id"]}: log_sigma = {log_sigma:.4f}; sigma = {sigma:.4e}; dr = {1/sigma:.4f}')
     # sigma = torch.tensor(sigma).to(device)
-    if "time" not in data:
-        tau = compute_tau_instance(op, data, sigma)
-    else:
-        print("Time vector detected. tau will be computed for each time instance...")
-        time = data["time"].squeeze()
-        time_diff = time[1:] - time[:-1]
-        new_start = torch.cat(
-            [
-                torch.tensor([0]).to(device),
-                torch.where(abs(time_diff) > data["timeStep"])[0] + 1,
-                torch.tensor([max(time.shape)]).to(device),
-            ]
-        )
-        tau = torch.zeros(max(data["u"].shape), device=device)
-        print(f"Number of time instances: {len(new_start) - 1}")
-        for i in range(len(new_start) - 1):
-            print(
-                f"Computing tau for time instance {i + 1}/{len(new_start) - 1}: start: {new_start[i]}, end: {new_start[i + 1] - 1}"
-            )
-            u = data["u"][..., new_start[i] : new_start[i + 1]]
-            v = data["v"][..., new_start[i] : new_start[i + 1]]
-            data_instance = {"u": u, "v": v}
-            if "nWimag" in data and data["nWimag"].numel() > 1:
-                nWimag = data["nWimag"][..., new_start[i] : new_start[i + 1]].clone()
-                data_instance.update({"nWimag": nWimag})
-            if "nW" in data and data["nW"].numel() > 1:
-                nW = data["nW"][..., new_start[i] : new_start[i + 1]].clone()
-                data_instance.update({"nW": nW})
-            tau_tmp = compute_tau_instance(op, data_instance, sigma)
-            print(f"{i+1}: tau= {tau_tmp}")
-            tau[new_start[i] : new_start[i + 1]] = tau_tmp
+    # if "time" not in data:
+    tau = compute_tau_instance(op, data, sigma)
+    print("Assuming constant noise for entire observation...")
+    # else:
+    #     print("Time vector detected. tau will be computed for each time instance...")
+    #     time = data["time"].squeeze()
+    #     time_diff = time[1:] - time[:-1]
+    #     new_start = torch.cat(
+    #         [
+    #             torch.tensor([0]).to(device),
+    #             torch.where(abs(time_diff) > data["timeStep"])[0] + 1,
+    #             torch.tensor([max(time.shape)]).to(device),
+    #         ]
+    #     )
+    #     tau = torch.zeros(max(data["u"].shape), device=device)
+    #     print(f"Number of time instances: {len(new_start) - 1}")
+    #     for i in range(len(new_start) - 1):
+    #         print(
+    #             f"Computing tau for time instance {i + 1}/{len(new_start) - 1}: start: {new_start[i]}, end: {new_start[i + 1] - 1}"
+    #         )
+    #         u = data["u"][..., new_start[i] : new_start[i + 1]]
+    #         v = data["v"][..., new_start[i] : new_start[i + 1]]
+    #         data_instance = {"u": u, "v": v}
+    #         if "nWimag" in data and data["nWimag"].numel() > 1:
+    #             nWimag = data["nWimag"][..., new_start[i] : new_start[i + 1]].clone()
+    #             data_instance.update({"nWimag": nWimag})
+    #         if "nW" in data and data["nW"].numel() > 1:
+    #             nW = data["nW"][..., new_start[i] : new_start[i + 1]].clone()
+    #             data_instance.update({"nW": nW})
+    #         tau_tmp = compute_tau_instance(op, data_instance, sigma)
+    #         print(f"{i+1}: tau= {tau_tmp}")
+    #         tau[new_start[i] : new_start[i + 1]] = tau_tmp
 
     # if len(tau.size()) == 0 or len(tau.shape) == 1:
     #     tau = tau.unsqueeze(0)

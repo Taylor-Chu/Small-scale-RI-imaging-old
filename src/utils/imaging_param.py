@@ -143,6 +143,8 @@ def set_imaging_params_ri(
         
     # 3c273 real data
     param_optimiser["target"] = param_general.get("target", None)
+    if param_optimiser["target"] is None:
+        param_optimiser["target"] = param_general.get("src_name", None)
     param_optimiser["data_path"] = param_general.get("data_path", None)
     param_optimiser["freq_num"] = param_general.get("freq_num", None)
     param_optimiser["nfreqs"] = param_general.get("nfreqs", None)

@@ -7,11 +7,18 @@ from pathlib import Path
 import h5py
 import numpy as np
 import torch
-from astropy.io import fits
+
+# from astropy.io import fits
 from scipy.constants import speed_of_light
 from scipy.io import loadmat
 from scipy.io.matlab import matfile_version
-from torch.utils.data import Dataset
+
+# from torch.utils.data import Dataset
+
+
+def vprint(message, verbose):
+    if verbose:
+        print(message, flush=True)
 
 
 def load_data_to_tensor(
@@ -105,7 +112,7 @@ def load_data_to_tensor(
                         print("Type not implemented to be read here", h5obj)
         else:
             loadmat(main_data_file, mdict=data_holo)
-            
+
         if freq_num is not None:
             if nfreqs is None:
                 freqs = [data_holo["freqs"].squeeze()[freq_num - 1]]
@@ -113,7 +120,10 @@ def load_data_to_tensor(
             else:
                 freqs = data_holo["freqs"].squeeze()[freq_num - 1 : freq_num - 1 + nfreqs]
                 print(f"INFO: Using {nfreqs} frequency channels.", flush=True)
-                print(f"INFO: Using frequency channels {freq_num} to {freq_num + nfreqs - 1}: {freqs}", flush=True)
+                print(
+                    f"INFO: Using frequency channels {freq_num} to {freq_num + nfreqs - 1}: {freqs}",
+                    flush=True,
+                )
         else:
             if nfreqs is not None:
                 freqs = data_holo["freqs"].squeeze()[:nfreqs]
@@ -196,10 +206,10 @@ def load_data_to_tensor(
                 data["nW"][0, 0, counter:new_counter] = data_ch_i_f["weightsNat"].squeeze()
                 counter = new_counter
 
-        del data_holo 
+        del data_holo
         gc.collect()
 
-    else:
+    elif target == "cyga":
         data_tmp = {}
         mat_version, _ = matfile_version(main_data_file)
         if mat_version == 2:
@@ -285,6 +295,99 @@ def load_data_to_tensor(
         data["y"] = data_tmp["y"].squeeze()[flag[0, :] == True]
         data["nW"] = data_tmp["nW"].squeeze()[flag[0, :] == True]
 
+    else:
+        verbose = True
+        data = {}
+        mat_version, _ = matfile_version(main_data_file)
+        if mat_version == 2:
+            data = dict()
+            with h5py.File(main_data_file, "r") as h5File:
+                for key, h5obj in h5File.items():
+                    if isinstance(h5obj, h5py.Dataset):
+                        data[key] = np.array(h5obj)
+                        if data[key].dtype.names and "imag" in data[key].dtype.names:
+                            data[key] = data[key]["real"] + 1j * data[key]["imag"]
+        else:
+            data = loadmat(main_data_file)
+
+        u = data["u"].squeeze()
+        v = data["v"].squeeze()
+        if "w" in data:
+            w = data["w"].squeeze()
+        else:
+            w = np.array([0.0])
+        # convert uvw in units of the wavelength
+        if "flag" in data:
+            vprint("INFO: applying flagging to the sampling pattern", verbose)
+
+            frequency = data["frequency"].squeeze()
+            if len(frequency.shape) == 0:
+                frequency = np.array([frequency.item()])
+
+            flag = data["flag"]
+            flag_counter = 0
+            while len(flag.shape) > 3:
+                flag = flag.squeeze(0)
+                flag_counter += 1
+                if flag_counter > 5:
+                    raise ValueError(
+                        "Dimension of flags in the data cannot match dimension of the uv-points."
+                    )
+            if len(flag.shape) == 2:
+                flag = np.expand_dims(flag, axis=0)
+            # data["flag"] = torch.tensor(flag).to(device)
+
+            nFreqs = data["nFreqs"].item()
+
+            if "unit" in data and data["unit"].item() == "m":
+                vprint("INFO: converting uv coordinate unit from meters to wavelength.", verbose)
+                u = np.concatenate(
+                    [
+                        u[flag[0, iFreq, :] == False] / (speed_of_light / frequency[iFreq].item())
+                        for iFreq in range(nFreqs)
+                    ]
+                )
+                v = np.concatenate(
+                    [
+                        v[flag[0, iFreq, :] == False] / (speed_of_light / frequency[iFreq].item())
+                        for iFreq in range(nFreqs)
+                    ]
+                )
+                if "w" in data:
+                    w = np.concatenate([w[flag[0, iFreq, :] == False] for iFreq in range(nFreqs)])
+            else:
+                u = np.concatenate([u[flag[0, iFreq, :] == False] for iFreq in range(nFreqs)])
+                v = np.concatenate([v[flag[0, iFreq, :] == False] for iFreq in range(nFreqs)])
+                if "w" in data:
+                    w = np.concatenate([w[flag[0, iFreq, :] == False] for iFreq in range(nFreqs)])
+        else:
+            if "unit" in data:
+                if data["unit"].item() == "m":
+                    vprint("INFO: converting uv coordinate unit from meters to wavelength.", verbose)
+                    wavelength = speed_of_light / data["frequency"].item()
+                    u = u / wavelength
+                    v = v / wavelength
+
+        data["u"] = u
+        data["v"] = v
+        data["nW"] = data["nW"].squeeze()
+        data["ant1"] = np.concatenate(
+            [data["ant1"].squeeze()[flag[0, iFreq, :] == False] for iFreq in range(nFreqs)]
+        )
+        data["ant2"] = np.concatenate(
+            [data["ant2"].squeeze()[flag[0, iFreq, :] == False] for iFreq in range(nFreqs)]
+        )
+        data["Q"] = 27
+        V = data["Q"] * (data["Q"] - 1) // 2
+        B_per_ch = int(flag.shape[-1] / V)
+        # batches = np.array([[i for i in range(data["B"])] * V]).ravel()
+        batches = np.array([[i] * V for i in range(B_per_ch)]).ravel()
+        data["B"] = B_per_ch * nFreqs
+        data["batches"] = np.concatenate(
+            [batches.squeeze()[flag[0, iFreq, :] == False] + iFreq * B_per_ch for iFreq in range(nFreqs)]
+        )
+        # data["batches"] = np.array([[i] * V for i in range(data["B"])]).ravel()
+
     max_proj_baseline = np.max(np.sqrt(data["u"] ** 2 + data["v"] ** 2))
     data["max_proj_baseline"] = max_proj_baseline
     spatial_bandwidth = 2 * max_proj_baseline
@@ -309,8 +412,7 @@ def load_data_to_tensor(
         print("doing it")
         n_meas_SR_1 = data["u"].numel()
         bmax_SR_below_1 = torch.sqrt(
-            (data["u"].clone() * super_resolution) ** 2
-            + (data["v"].clone() * super_resolution) ** 2
+            (data["u"].clone() * super_resolution) ** 2 + (data["v"].clone() * super_resolution) ** 2
         ).max()
         ant_filter = []
         for ant1 in np.unique(data["ant1"]):
@@ -326,16 +428,16 @@ def load_data_to_tensor(
         arc_filter = np.zeros(n_meas_SR_1, dtype=bool)
         for ant1, ant2 in ant_filter:
             arc_filter |= (data["ant1"] == ant1) & (data["ant2"] == ant2)
-        data["u"] = data["u"].clone()[:, :, arc_filter==False].view(1, 1, -1)
-        data["v"] = data["v"].clone()[:, :, arc_filter==False].view(1, 1, -1)
-        data["y"] = data["y"].clone()[:, :, arc_filter==False].view(1, 1, -1)
-        data["nW"] = data["nW"].clone()[:, :, arc_filter==False].view(1, 1, -1)
+        data["u"] = data["u"].clone()[:, :, arc_filter == False].view(1, 1, -1)
+        data["v"] = data["v"].clone()[:, :, arc_filter == False].view(1, 1, -1)
+        data["y"] = data["y"].clone()[:, :, arc_filter == False].view(1, 1, -1)
+        data["nW"] = data["nW"].clone()[:, :, arc_filter == False].view(1, 1, -1)
         if data["ant1"] is not None:
-            data["ant1"] = data["ant1"][arc_filter==False]
+            data["ant1"] = data["ant1"][arc_filter == False]
         if data["ant2"] is not None:
-            data["ant2"] = data["ant2"][arc_filter==False]
+            data["ant2"] = data["ant2"][arc_filter == False]
         if data["batches"] is not None:
-            data["batches"] = data["batches"][arc_filter==False]
+            data["batches"] = data["batches"][arc_filter == False]
 
         print(f"INFO: Limiting the visibilities to the grid correpsonding to SR = 1.0", flush=True)
         print(
@@ -372,10 +474,14 @@ def load_data_to_tensor(
     data["nWimag"] = torch.tensor(data["nWimag"], dtype=dtype, device=device).view(1, 1, -1)
 
     if vis_remove is not None:
-        print(f"INFO: max y before removing {vis_remove}: {data['y'].real.max().item()} + {data['y'].imag.max().item()}")
+        print(
+            f"INFO: max y before removing {vis_remove}: {data['y'].real.max().item()} + {data['y'].imag.max().item()}"
+        )
         data["y"] = data["y"] - vis_remove
         print(f"INFO: Removing {vis_remove} from the data.")
-        print(f"INFO: max y after removing {vis_remove}: {data['y'].real.max().item()} + {data['y'].imag.max().item()}")
+        print(
+            f"INFO: max y after removing {vis_remove}: {data['y'].real.max().item()} + {data['y'].imag.max().item()}"
+        )
 
     if dl_shift is not None and dm_shift is not None:
         print(
