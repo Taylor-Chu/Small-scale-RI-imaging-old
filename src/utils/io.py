@@ -370,7 +370,27 @@ def load_data_to_tensor(
 
         data["u"] = u
         data["v"] = v
-        data["nW"] = data["nW"].squeeze()
+        
+        # data["nW"] = data["nW"].squeeze()
+        if "nW" in data:
+            vprint("INFO: using provided nW.", verbose)
+            if data["nW"].size == 1:
+            # if data["nW"].shape[-1] == 1 or data["nW"].shape[-1] == data["u"].shape[-1]:
+                nW = data["nW"].squeeze()
+                vprint("INFO: single noise level.", verbose)
+            else:
+                tau_index, nW_unique = zip(*sorted(zip(data["tau_index"].squeeze(), data["nW"].squeeze())))
+                tau_index = tau_index + (max(data["u"].shape),)
+                nW = np.zeros(max(data["u"].shape))
+                for i in range(len(tau_index) - 1):
+                    nW[tau_index[i] : tau_index[i + 1]] = nW_unique[i]
+                
+                vprint("INFO: reconstructing nW vector.", verbose)
+            data["nW"] = torch.tensor(nW, dtype=torch.complex128, device=device).view(1, 1, -1)
+        elif verbose:
+            vprint(f'INFO: natural weights "nW" not found, set to 1.', verbose)
+            data["nW"] = torch.tensor([1.0], dtype=torch.complex128, device=device).view(1, 1, -1)
+            
         data["ant1"] = np.concatenate(
             [data["ant1"].squeeze()[flag[0, iFreq, :] == False] for iFreq in range(nFreqs)]
         )
