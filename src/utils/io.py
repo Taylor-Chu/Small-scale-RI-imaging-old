@@ -86,8 +86,8 @@ def load_data_to_tensor(
 
     if target == "3c273":
         super_resolution_target = super_resolution
-        super_resolution = 1.87
-        img_size = (1024, 1024)
+        # if img_size == (1024, 1024):
+        #     super_resolution = 1.87
         data_holo = {}
         mat_version, _ = matfile_version(main_data_file)
         if mat_version == 2:
@@ -507,8 +507,8 @@ def load_data_to_tensor(
         print(
             f"INFO: Applying phase shift to the data corresponding to shifting the centre of the original image by ({dl_shift}, {dm_shift}) pixels."
         )
-        dl = 157 * image_pixel_size * np.pi
-        dm = -143 * image_pixel_size * np.pi
+        dl = dl_shift * image_pixel_size * np.pi
+        dm = dm_shift * image_pixel_size * np.pi
         phase = torch.exp(1j * 2 * np.pi * (data["u"] * dl + data["v"] * dm))
         data["y"] = data["y"] * phase
         data["u"] = data["u"].clone() * (super_resolution / super_resolution_target)

@@ -235,9 +235,11 @@ def imager(param_optimiser: Dict, param_measop: Dict, param_proxop: Dict) -> Non
         VB = data['y'].numel()
         print(f"INFO: data size before {param_measop['ROP_param']['ROP_type']} is {VB}")
         if param_measop["ROP_param"]["ROP_type"] == "MROP":
-            data["y"] = meas_op.MD(data["y"] * weight_corr)
+            data["y"] = meas_op.MD(data["y"])
+            # data["y"] = meas_op.MD(data["y"] * weight_corr)
         elif param_measop["ROP_param"]["ROP_type"] == "CROP":
-            data["y"] = meas_op.D(data["y"] * weight_corr)
+            data["y"] = meas_op.D(data["y"])
+            # data["y"] = meas_op.D(data["y"] * weight_corr)
         print(f"INFO: data size after {param_measop['ROP_param']['ROP_type']} is {data['y'].numel()}")
         print(f"INFO: D/VB ratio = {data['y'].numel() / VB :.4e}")
         print(f"INFO: D/N ratio = {data['y'].numel() / np.prod(param_measop['img_size']) :.4e}")

@@ -176,7 +176,7 @@ def set_imaging_params_ri(
             "rv_type": param_general["ROP_rv_type"],
             "ROP_seed": param_general.get("ROP_seed", 1),
             "ROP_batchwise": param_general.get("ROP_batchwise", False),
-            "ROP_batch_step": param_general.get("ROP_batch_step", 1),
+            "ROP_batch_step": param_general.get("ROP_batch_step", None),
             "weight_type": param_general.get("weight_type", None),
             "ROP_vmap": param_general.get("ROP_vmap", False),
             "ROP_vmap_chunk_size": param_general.get("ROP_vmap_chunk_size", None),
