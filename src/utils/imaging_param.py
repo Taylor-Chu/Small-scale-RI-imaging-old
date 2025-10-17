@@ -11,7 +11,7 @@ import psutil
 
 
 def set_imaging_params_ri(
-    param_general: Dict[str, Any]
+    param_general: Dict[str, Any],
 ) -> Tuple[Dict[str, Any], Dict[str, Any], Dict[str, Any]]:
     """
     Set parameters of measuemt operator, prox operator and optimiser for
@@ -140,6 +140,40 @@ def set_imaging_params_ri(
         param_measop["nufft_mode"] = param_general["nufft_mode"]
     else:
         param_measop["nufft_mode"] = "table"
+
+    # MROP
+    param_measop["ROP_type"] = param_general.get("ROP_type", None)
+    param_measop["use_ROP"] = False
+    if param_measop["ROP_type"] in ["none", None]:
+        param_measop["ROP_type"] = None
+        param_measop["ROP_param"] = None
+    elif param_measop["ROP_type"] in ["MROP", "CROP"]:
+        param_measop["use_ROP"] = True
+        param_measop["ROP_param"] = {
+            "ROP_type": param_measop["ROP_type"],
+            "Q": param_general.get("ROP_Q", None),
+            "B": param_general.get("ROP_B", None),
+            "P": param_general["ROP_P"],
+            "M": param_general["ROP_M"],
+            "rv_type": param_general["ROP_rv_type"],
+            "ROP_seed": param_general.get("ROP_seed", 1),
+            "weight_type": param_measop["weight_type"],
+        }
+        if param_measop["use_ROP"]:
+            assert not param_general[
+                "approx_meas_op"
+            ], "approximate measurement operator is currently not supported for MROP/CROP."
+            assert (
+                param_optimiser["algorithm"] == "usara"
+            ), "MROP/CROP is currently only supported for uSARA."
+            assert (
+                param_measop["weight_type"] == "uniform"
+            ), "MROP/CROP is currently only supported for uniform weighting."
+    else:
+        raise ValueError(
+            f"argument ROP_type {param_measop['ROP_type']} not supported. "
+            "Please use 'MROP' or 'CROP'."
+        )
 
     # computing resources
     # number of threads
@@ -348,6 +382,7 @@ def set_imaging_params_ri(
         param_general["result_path"], param_general["src_name"]
     )
     os.makedirs(param_optimiser["result_path"], exist_ok=True)
+
     file_prefix = ""
     if param_optimiser["algorithm"] == "airi":
         file_prefix = "AIRI_heuScale_" + str(param_optimiser["heu_noise_scale"]) + "_"

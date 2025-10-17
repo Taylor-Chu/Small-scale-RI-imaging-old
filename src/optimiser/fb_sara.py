@@ -30,6 +30,7 @@ class FBSARA(ForwardBackward):
         meas: torch.Tensor,
         meas_op: MeasOpNUFFT,
         prox_op: ProxOpSARAPos,
+        use_ROP: bool = False,
         meas_op_approx: Union[MeasOpPSF, None] = None,
         im_min_itr: int = 30,
         im_max_itr: int = 2000,
@@ -76,6 +77,7 @@ class FBSARA(ForwardBackward):
             file_prefix=file_prefix,
         )
 
+        self._use_ROP = use_ROP
         self._im_max_itr_inner = im_max_itr
         self._im_min_itr = im_min_itr
         self._im_var_tol = im_var_tol
@@ -117,7 +119,7 @@ class FBSARA(ForwardBackward):
             self._meas_op_precise.get_op_norm_prime()
             / self._meas_op_precise.get_op_norm()
         )
-        if not np.isclose(heu_corr_factor, 1.0):
+        if not np.isclose(heu_corr_factor, 1.0) and not self._use_ROP:
             self._heuristic *= heu_corr_factor
             if self._verbose:
                 print(

@@ -52,16 +52,39 @@ def imager(param_optimiser: Dict, param_measop: Dict, param_proxop: Dict) -> Non
         verbose=param_optimiser["verbose"],
     )
 
+    if param_measop["use_ROP"]:
+        from .mrop_ri_measurement_operator import weighting_correction
+
+        if param_measop["ROP_param"]["Q"] is None:
+            assert "Q" in data, "number of anntennas Q is not in data and not provided"
+            param_measop["ROP_param"]["Q"] = int(data["Q"])
+        if param_measop["ROP_param"]["B"] is None:
+            assert "B" in data, "number of baselines P is not in data and not provided"
+            param_measop["ROP_param"]["B"] = int(data["B"])
+        data, weight_corr = weighting_correction(data, param_measop["ROP_param"])
+        print(
+            f"INFO: Correction has been applied to the weighting for {param_measop['ROP_param']['ROP_type']}"
+        )
+
     meas_op = None
+
     if param_measop["nufft_package"] == "pynufft":
         from .ri_measurement_operator.pysrc.measOperator.meas_op_nufft_pynufft import (
             MeasOpPynufft,
         )
 
-        meas_op = MeasOpPynufft(
-            data["u"],
-            data["v"],
-            param_measop["img_size"],
+        if not param_measop["use_ROP"]:
+            nufft_op = MeasOpPynufft
+        else:
+            from .mrop_ri_measurement_operator import create_meas_op_ROP
+
+            nufft_op = create_meas_op_ROP(MeasOpPynufft)
+
+        meas_op = nufft_op(
+            ROP_param=param_measop["ROP_param"],
+            u=data["u"],
+            v=data["v"],
+            img_size=param_measop["img_size"],
             natural_weight=data["nW"],
             image_weight=data["nWimag"],
             grid_size=param_measop["nufft_grid_size"],
@@ -69,43 +92,71 @@ def imager(param_optimiser: Dict, param_measop: Dict, param_proxop: Dict) -> Non
             device=param_measop["device"],
             dtype=param_measop["dtype"],
         )
+
     elif param_measop["nufft_package"] == "tkbnufft":
         from .ri_measurement_operator.pysrc.measOperator.meas_op_nufft_tkbn import (
             MeasOpTkbNUFFT,
         )
 
-        meas_op = MeasOpTkbNUFFT(
-            data["u"],
-            data["v"],
-            param_measop["img_size"],
+        if not param_measop["use_ROP"]:
+            nufft_op = MeasOpTkbNUFFT
+        else:
+            from .mrop_ri_measurement_operator import create_meas_op_ROP
+
+            nufft_op = create_meas_op_ROP(MeasOpTkbNUFFT)
+
+        meas_op = nufft_op(
+            ROP_param=param_measop["ROP_param"],
+            u=data["u"],
+            v=data["v"],
+            img_size=param_measop["img_size"],
             natural_weight=data["nW"],
             image_weight=data["nWimag"],
             grid_size=param_measop["nufft_grid_size"],
-            num_points=param_measop["nufft_kb_kernel_dim"],
+            kernel_dim=param_measop["nufft_kb_kernel_dim"],
             mode=param_measop["nufft_mode"],
             device=param_measop["device"],
             dtype=param_measop["dtype"],
         )
+
     else:
         from .ri_measurement_operator.pysrc.measOperator.meas_op_nufft_pytorch_finufft import (
             MeasOpPytorchFinufft,
         )
 
-        meas_op = MeasOpPytorchFinufft(
-            data["u"],
-            data["v"],
-            param_measop["img_size"],
+        if not param_measop["use_ROP"]:
+            nufft_op = MeasOpPytorchFinufft
+        else:
+            from .mrop_ri_measurement_operator import create_meas_op_ROP
+
+            nufft_op = create_meas_op_ROP(MeasOpPytorchFinufft)
+
+        meas_op = nufft_op(
+            ROP_param=param_measop["ROP_param"],
+            u=data["u"],
+            v=data["v"],
+            img_size=param_measop["img_size"],
             natural_weight=data["nW"],
             image_weight=data["nWimag"],
             device=param_measop["device"],
             dtype=param_measop["dtype"],
         )
 
+    if param_measop["use_ROP"]:
+        print(
+            f"INFO: data size before {param_measop['ROP_param']['ROP_type']} is {data['y'].numel()}"
+        )
+        if param_measop["ROP_param"]["ROP_type"] == "MROP":
+            data["y"] = meas_op.MD(data["y"] * weight_corr)
+        elif param_measop["ROP_param"]["ROP_type"] == "CROP":
+            data["y"] = meas_op.D(data["y"] * weight_corr)
+        print(
+            f"INFO: data size after {param_measop['ROP_param']['ROP_type']} is {data['y'].numel()}"
+        )
+
     meas_op_approx = None
     if param_optimiser["approx_meas_op"]:
-        from .ri_measurement_operator.pysrc.measOperator.meas_op_PSF import (
-            MeasOpPSF,
-        )
+        from .ri_measurement_operator.pysrc.measOperator.meas_op_PSF import MeasOpPSF
 
         meas_op_approx = MeasOpPSF(
             data["u"],
@@ -225,6 +276,7 @@ def imager(param_optimiser: Dict, param_measop: Dict, param_proxop: Dict) -> Non
             data["y"],
             meas_op,
             prox_op_sara,
+            use_ROP=param_measop["use_ROP"],
             meas_op_approx=meas_op_approx,
             im_min_itr=param_optimiser["im_min_itr"],
             im_max_itr=param_optimiser["im_max_itr"],
