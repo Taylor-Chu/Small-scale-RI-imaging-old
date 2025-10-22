@@ -111,7 +111,7 @@ def parsing_parameters(
                 param[k] = v
 
     # load general parameters
-    list_keys = ["flag", "weighting", "computing", "nufft"]
+    list_keys = ["flag", "weighting", "computing", "nufft", "ROP"]
     if param["algorithm"] == "airi":
         list_keys.extend(["airi", "airi_default"])
     elif param["algorithm"] == "cairi":
@@ -121,6 +121,8 @@ def parsing_parameters(
     else:
         raise NotImplementedError(f"Algorithm {param['algorithm']} not found\n")
     for key in list_keys:
+        if key == "ROP" and key not in json_dict:
+            continue
         for k, v in json_dict[key].items():
             if "_comment_" not in k:
                 param[k] = v
