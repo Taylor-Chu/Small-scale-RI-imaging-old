@@ -6,7 +6,7 @@ from typing import Any, Dict, Optional
 import argparse
 import json
 
-from src.imager import imager
+from src.imager_3c273_bda import imager
 from src.utils import set_imaging_params_ri
 
 
@@ -76,6 +76,21 @@ def parsing_arguments() -> argparse.Namespace:
         type=int,
         default=None,
         help="identification number of the current task",
+    )
+    parser.add_argument(
+        "--BDA_max_avg_time",
+        type=float,
+        default=32
+    )
+    parser.add_argument(
+        "--BDA_max_avg_freq",
+        type=float,
+        default=16
+    )
+    parser.add_argument(
+        "--BDA_smearing_limit",
+        type=float,
+        default=0.5
     )
     return parser.parse_args()
 

@@ -29,12 +29,14 @@ class FBAIRI(ForwardBackward):
         meas: torch.Tensor,
         meas_op: MeasOpNUFFT,
         prox_op: ProxOpAIRI,
+        use_ROP: bool = False,
         meas_op_approx: Union[MeasOpPSF, None] = None,
         im_min_itr: int = 100,
         im_max_itr: int = 2000,
         im_var_tol: float = 1e-4,
         im_peak_est: Union[float, None] = None,
         heu_noise_scale: float = 1.0,
+        new_heu: bool = False,
         adapt_net_select: bool = True,
         peak_tol_min: float = 1e-3,
         peak_tol_max: float = 0.1,
@@ -75,10 +77,12 @@ class FBAIRI(ForwardBackward):
             meas_op,
             prox_op,
             im_max_itr=im_max_itr,
+            new_heu=new_heu,
             save_pth=save_pth,
             file_prefix=file_prefix,
         )
 
+        self._use_ROP = use_ROP
         self._im_min_itr = im_min_itr
         self._im_var_tol = im_var_tol
         self._im_peak_est = im_peak_est
@@ -89,6 +93,7 @@ class FBAIRI(ForwardBackward):
         self._peak_tol_step = peak_tol_step
         self._peak_val_range = []
         self._verbose = verbose
+        self._new_heu = new_heu
         self._iter_save = iter_save
 
         self._prev_peak_val = 1.0
@@ -124,18 +129,36 @@ class FBAIRI(ForwardBackward):
                 )
 
         # heuristic noise level
-        self._heuristic = 1 / np.sqrt(2 * self._meas_op_precise.get_op_norm())
+        # self._heuristic = 1 / np.sqrt(2 * self._meas_op_precise.get_op_norm())
+        if self._new_heu:
+            noise = (torch.randn_like(self._meas, dtype=self._meas.dtype, device=self._meas.device) + 1j * torch.randn_like(self._meas, dtype=self._meas.dtype, device=self._meas.device)) / np.sqrt(2)
+            self._heuristic = (self._meas_op.adjoint_op(noise) / self._meas_op.get_psf().max()).std().item() / self._meas_bp.max().item()
+            if self._verbose:
+                print(
+                    f"INFO: using Sally's new heuristic",
+                    flush=True,
+                )
+        else:
+            self._heuristic = 1 / np.sqrt(2 * self._meas_op_precise.get_op_norm())
+            if self._verbose:
+                print(
+                    f"INFO: measurement operator norm {self._meas_op_precise.get_op_norm()}",
+                    flush=True,
+                )
         if self._verbose:
             print(
                 f"INFO: measurement operator norm {self._meas_op_precise.get_op_norm()}",
                 flush=True,
             )
             print(f"INFO: heuristic noise level: {self._heuristic}", flush=True)
-        heu_corr_factor = np.sqrt(
-            self._meas_op_precise.get_op_norm_prime()
-            / self._meas_op_precise.get_op_norm()
-        )
-        if not np.isclose(heu_corr_factor, 1.0):
+        if not self._use_ROP:
+            heu_corr_factor = np.sqrt(
+                self._meas_op_precise.get_op_norm_prime()
+                / self._meas_op_precise.get_op_norm()
+            )
+        else:
+            heu_corr_factor = 1.0
+        if not np.isclose(heu_corr_factor, 1.0) and not self._use_ROP:
             self._heuristic *= heu_corr_factor
             if self._verbose:
                 print(
@@ -254,6 +277,11 @@ class FBAIRI(ForwardBackward):
                 curr_peak_val < self._peak_val_range[0]
                 or curr_peak_val > self._peak_val_range[1]
             ):
+                if self._verbose and self._new_heu:
+                    print(
+                        f"  Current heuristic: {self._heuristic}",
+                        flush=True,
+                    )
                 self._peak_val_range = self._prox_op.update(
                     self._heuristic, self._prev_peak_val
                 )

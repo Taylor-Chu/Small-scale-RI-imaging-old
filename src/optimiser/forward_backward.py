@@ -28,6 +28,8 @@ class ForwardBackward(Optimiser):
         meas_op_precise: Union[MeasOp, None],
         prox_op: ProxOp,
         im_max_itr: int = 2000,
+        algorithm: str = None,
+        new_heu: bool = False,
         save_pth: str = "results",
         file_prefix: str = "",
     ) -> None:
@@ -49,6 +51,8 @@ class ForwardBackward(Optimiser):
         self._start_iter = 0
         self._im_max_itr = im_max_itr
         self._gd_step_size = 1.0
+        self._new_heu = new_heu
+        self._algorithm = algorithm
 
         # timing
         self._t_total = 0.0
@@ -72,6 +76,11 @@ class ForwardBackward(Optimiser):
         )
         self._psf = self._meas_op_precise.get_psf()
         self._psf_peak = self._psf.max().item()
+        print(f"PSF peak value: {self._psf_peak:.6e}")
+        
+        if self._new_heu:
+            self._meas_bp_max = self._meas_bp.max().item()
+        
         fits.writeto(
             os.path.join(self._save_pth, "dirty.fits"),
             self.get_dirty_image() / self._psf_peak,
@@ -110,10 +119,25 @@ class ForwardBackward(Optimiser):
                 forward_start_event.record()
             else:
                 self._t_forward = timer()
-            x_hat = self._model - self._gd_step_size * (
-                self._meas_op.adjoint_op(self._meas_op.forward_op(self._model))
-                - self._meas_bp
-            )
+            # x_hat = self._model - self._gd_step_size * (
+            #     self._meas_op.adjoint_op(self._meas_op.forward_op(self._model))
+            #     - self._meas_bp
+            # )
+            if self._new_heu:
+                res = self._meas_op.adjoint_op(self._meas_op.forward_op(self._model)) - self._meas_bp
+                # Compute heuristic using cached _meas_bp_max and single GPU-CPU transfer
+                _cur_heuristic = res.std().item() / self._meas_bp_max
+                if self._algorithm == "usara":
+                    _threshold = _cur_heuristic / 3.0
+                    self._prox_op.set_noise_floor_level(_threshold) 
+                    self._prox_op.set_soft_thresholding_value(_threshold)
+                elif self._algorithm == "airi":
+                    self._heuristic = _cur_heuristic
+                x_hat = self._model - self._gd_step_size * res
+            else:
+                x_hat = self._model - self._gd_step_size * (
+                    self._meas_op.adjoint_op(self._meas_op.forward_op(self._model)) - self._meas_bp
+                )
             x_hat = x_hat.to(
                 device=self._prox_op.get_device(), dtype=self._prox_op.get_data_type()
             )

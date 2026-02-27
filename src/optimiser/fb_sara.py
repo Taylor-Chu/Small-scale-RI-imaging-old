@@ -36,6 +36,7 @@ class FBSARA(ForwardBackward):
         im_max_itr: int = 2000,
         im_var_tol: float = 1e-5,
         heu_reg_scale: float = 1.0,
+        new_heu: bool = False,
         im_max_itr_outer: int = 20,
         im_var_tol_outer: float = 1e-4,
         save_pth: str = "results",
@@ -73,6 +74,7 @@ class FBSARA(ForwardBackward):
             meas_op,
             prox_op,
             im_max_itr=im_max_itr * im_max_itr_outer,
+            new_heu=new_heu,
             save_pth=save_pth,
             file_prefix=file_prefix,
         )
@@ -86,6 +88,7 @@ class FBSARA(ForwardBackward):
         self._im_var_tol_outer = im_var_tol_outer
         self._reweight_save = reweight_save
         self._verbose = verbose
+        self._new_heu = new_heu
 
         self._heuristic = 1.0
         self._model_prev_re = self._model
@@ -108,17 +111,35 @@ class FBSARA(ForwardBackward):
         self._gd_step_size = 1.98 / self._meas_op_precise.get_op_norm()
 
         # heuristic noise level
-        self._heuristic = 1 / np.sqrt(2 * self._meas_op_precise.get_op_norm())
+        # self._heuristic = 1 / np.sqrt(2 * self._meas_op_precise.get_op_norm())
+        if self._new_heu:
+            noise = (torch.randn_like(self._meas, dtype=self._meas.dtype, device=self._meas.device) + 1j * torch.randn_like(self._meas, dtype=self._meas.dtype, device=self._meas.device)) / np.sqrt(2)
+            self._heuristic = (self._meas_op.adjoint_op(noise) / self._meas_op.get_psf().max()).std().item() / self._meas_bp.max().item()
+            if self._verbose:
+                print(
+                    f"INFO: using Sally's new heuristic",
+                    flush=True,
+                )
+        else:
+            self._heuristic = 1 / np.sqrt(2 * self._meas_op_precise.get_op_norm())
+            if self._verbose:
+                print(
+                    f"INFO: measurement operator norm {self._meas_op_precise.get_op_norm()}",
+                    flush=True,
+                )
         if self._verbose:
-            print(
-                f"INFO: measurement operator norm {self._meas_op_precise.get_op_norm()}",
-                flush=True,
-            )
+            # print(
+            #     f"INFO: measurement operator norm {self._meas_op_precise.get_op_norm()}",
+            #     flush=True,
+            # )
             print(f"INFO: heuristic noise level: {self._heuristic}", flush=True)
-        heu_corr_factor = np.sqrt(
-            self._meas_op_precise.get_op_norm_prime()
-            / self._meas_op_precise.get_op_norm()
-        )
+        if not self._use_ROP:
+            heu_corr_factor = np.sqrt(
+                self._meas_op_precise.get_op_norm_prime()
+                / self._meas_op_precise.get_op_norm()
+            )
+        else:
+            heu_corr_factor = 1.0
         if not np.isclose(heu_corr_factor, 1.0) and not self._use_ROP:
             self._heuristic *= heu_corr_factor
             if self._verbose:

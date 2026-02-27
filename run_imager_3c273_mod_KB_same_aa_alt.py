@@ -6,7 +6,7 @@ from typing import Any, Dict, Optional
 import argparse
 import json
 
-from src.imager import imager
+from src.imager_3c273_mrop_mod_KB_same_aa_alt import imager
 from src.utils import set_imaging_params_ri
 
 

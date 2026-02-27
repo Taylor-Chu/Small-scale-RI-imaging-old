@@ -54,18 +54,12 @@ def set_imaging_params_ri(
         param_measop["img_size"] = (512, 512)
 
     # image pixel size
-    if (
-        param_general.get("im_pixel_size", None)
-        and param_general["im_pixel_size"] > 0.0
-    ):
+    if param_general.get("im_pixel_size", None) and param_general["im_pixel_size"] > 0.0:
         param_measop["im_pixel_size"] = param_general["im_pixel_size"]
     else:
         param_measop["im_pixel_size"] = None
     # super-resolution factor
-    if (
-        param_general.get("superresolution", None)
-        and param_general["superresolution"] >= 1.0
-    ):
+    if param_general.get("superresolution", None) and param_general["superresolution"] >= 1.0:
         param_measop["superresolution"] = float(param_general["superresolution"])
     else:
         param_measop["superresolution"] = 1.0
@@ -84,10 +78,7 @@ def set_imaging_params_ri(
         param_measop["weight_robustness"] = float(param_general["weight_robustness"])
     else:
         param_measop["weight_robustness"] = 0.0
-    if (
-        param_general.get("weight_gridsize", None)
-        and param_general.get("weight_gridsize", None) > 0.0
-    ):
+    if param_general.get("weight_gridsize", None) and param_general.get("weight_gridsize", None) > 0.0:
         param_measop["weight_gridsize"] = float(param_general["weight_gridsize"])
     else:
         param_measop["weight_gridsize"] = 2
@@ -110,14 +101,8 @@ def set_imaging_params_ri(
         and param_general["nufft_oversampling_factor"][1] >= 1.0
     ):
         param_measop["nufft_grid_size"] = (
-            int(
-                param_general["nufft_oversampling_factor"][0]
-                * param_measop["img_size"][0]
-            ),
-            int(
-                param_general["nufft_oversampling_factor"][1]
-                * param_measop["img_size"][1]
-            ),
+            int(param_general["nufft_oversampling_factor"][0] * param_measop["img_size"][0]),
+            int(param_general["nufft_oversampling_factor"][1] * param_measop["img_size"][1]),
         )
     else:
         param_measop["nufft_grid_size"] = (
@@ -125,10 +110,7 @@ def set_imaging_params_ri(
             int(2.0 * param_measop["img_size"][1]),
         )
     # KB kernel dimension
-    if (
-        param_general.get("nufft_kb_kernel_dim", None)
-        and param_general["nufft_kb_kernel_dim"] >= 1.0
-    ):
+    if param_general.get("nufft_kb_kernel_dim", None) and param_general["nufft_kb_kernel_dim"] >= 1.0:
         param_measop["nufft_kb_kernel_dim"] = int(param_general["nufft_kb_kernel_dim"])
     else:
         param_measop["nufft_kb_kernel_dim"] = 7
@@ -141,38 +123,69 @@ def set_imaging_params_ri(
     else:
         param_measop["nufft_mode"] = "table"
 
+    # BDA
+    param_measop["use_BDA"] = param_general.get("use_BDA", False)
+    param_measop["max_avg_time"] = param_general.get("BDA_max_avg_time", None)
+    param_measop["max_avg_freq"] = param_general.get("BDA_max_avg_freq", None)
+    param_measop["smearing_limit"] = param_general.get("BDA_smearing_limit", None)
+
     # MROP
     param_measop["ROP_type"] = param_general.get("ROP_type", None)
     param_measop["use_ROP"] = False
     if param_measop["ROP_type"] in ["none", None]:
         param_measop["ROP_type"] = None
-        param_measop["ROP_param"] = None
+        if param_measop["use_BDA"]:
+            param_measop["ROP_param"] = {"Q": param_general.get("ROP_Q", None)}
+        else:
+            param_measop["ROP_param"] = None
     elif param_measop["ROP_type"] in ["MROP", "CROP"]:
         param_measop["use_ROP"] = True
+        if "ROP_seed" not in param_general:
+            try:
+                ROP_seed = int(param_optimiser["data_file"].split("_id_")[1].split("_")[0])
+            except:
+                ROP_seed = 1
         param_measop["ROP_param"] = {
             "ROP_type": param_measop["ROP_type"],
-            "Q": param_general.get("ROP_Q", None),
-            "B": param_general.get("ROP_B", None),
             "P": param_general["ROP_P"],
             "M": param_general["ROP_M"],
+            "N_ratio": param_general.get("ROP_N_ratio", 1.0),
+            "Q": param_general.get("ROP_Q", None),
+            "B": param_general.get("ROP_B", None),
             "rv_type": param_general["ROP_rv_type"],
-            "ROP_seed": param_general.get("ROP_seed", 1),
-            "weight_type": param_measop["weight_type"],
+            "ROP_seed": ROP_seed,
+            "ROP_batchwise": param_general.get("ROP_batchwise", False),
+            "ROP_batch_step": param_general.get("ROP_batch_step", None),
+            "weight_type": param_general.get("weight_type", None),
+            "ROP_vmap": param_general.get("ROP_vmap", False),
+            "ROP_vmap_chunk_size": param_general.get("ROP_vmap_chunk_size", None),
+            "freq_mod": param_general.get("freq_mod", None),
+            "same_ab": param_general.get("same_ab", False),
+            "same_ab_all": param_general.get("same_ab_all", False),
+            "same_ab_B": param_general.get("same_ab_B", False),
+            "same_seed": param_general.get("ROP_same_seed", 0),
         }
+
+        assert not (
+            param_measop["ROP_param"]["same_ab_all"] and param_measop["ROP_param"]["same_ab_B"]
+        ), "same_ab_all and same_ab_B cannot be both True."
+
+        if param_measop["ROP_param"]["same_seed"] != 0:
+            param_measop["ROP_param"]["ROP_seed"] = param_measop["ROP_param"]["same_seed"]
         if param_measop["use_ROP"]:
             assert not param_general[
                 "approx_meas_op"
             ], "approximate measurement operator is currently not supported for MROP/CROP."
-            assert (
-                param_optimiser["algorithm"] == "usara"
-            ), "MROP/CROP is currently only supported for uSARA."
-            assert (
-                param_measop["weight_type"] == "uniform"
-            ), "MROP/CROP is currently only supported for uniform weighting."
+            assert param_optimiser["algorithm"] in [
+                "usara",
+                "airi",
+            ], "MROP/CROP is currently only supported for uSARA and AIRI."
+            # assert (
+            #     param_measop["weight_type"] == "uniform"
+            # ), "MROP/CROP is currently only supported for uniform weighting."
     else:
         raise ValueError(
-            f"argument ROP_type {param_measop['ROP_type']} not supported. "
-            "Please use 'MROP' or 'CROP'."
+            f"argument ROP_type {param_measop['ROP_type']} not supported. " "Please use 'MROP' or 'CROP'."
         )
 
     # computing resources
@@ -195,21 +208,13 @@ def set_imaging_params_ri(
     if torch.backends.mps.is_available():
         list_devices.append("mps")
     list_devices.append("cpu")
-    if (
-        param_general.get("meas_device", None)
-        and param_general["meas_device"] in list_devices
-    ):
+    if param_general.get("meas_device", None) and param_general["meas_device"] in list_devices:
         param_measop["device"] = torch.device(param_general["meas_device"])
     else:
         param_measop["device"] = (
-            torch.device(list_devices[0])
-            if list_devices[0] != "mps"
-            else torch.device(list_devices[1])
+            torch.device(list_devices[0]) if list_devices[0] != "mps" else torch.device(list_devices[1])
         )
-    if (
-        param_general.get("prox_device", None)
-        and param_general["prox_device"] in list_devices
-    ):
+    if param_general.get("prox_device", None) and param_general["prox_device"] in list_devices:
         param_proxop["device"] = torch.device(param_general["prox_device"])
     else:
         param_proxop["device"] = torch.device(list_devices[0])
@@ -253,9 +258,7 @@ def set_imaging_params_ri(
     else:
         param_optimiser["itr_save"] = param_optimiser["im_max_itr"] + 1
 
-    if param_general.get("groundtruth", None) and os.path.isfile(
-        param_general["groundtruth"]
-    ):
+    if param_general.get("groundtruth", None) and os.path.isfile(param_general["groundtruth"]):
         param_optimiser["groundtruth"] = param_general["groundtruth"]
     else:
         param_optimiser["groundtruth"] = None
@@ -266,18 +269,15 @@ def set_imaging_params_ri(
     # parameters shared by AIRI algorithms
     if param_optimiser["algorithm"] in ["airi", "cairi"]:
         # heuristic noise scale
-        if (
-            param_general.get("heu_noise_scale", None)
-            and param_general["heu_noise_scale"] > 0
-        ):
+        if param_general.get("heu_noise_scale", None) and param_general["heu_noise_scale"] > 0:
             param_optimiser["heu_noise_scale"] = float(param_general["heu_noise_scale"])
         else:
             param_optimiser["heu_noise_scale"] = 1.0
 
+        param_optimiser["new_heu"] = param_general.get("new_heu", False)
+
         # AIRI shelf path
-        if param_general.get("dnn_shelf_path", None) and isinstance(
-            param_general["dnn_shelf_path"], str
-        ):
+        if param_general.get("dnn_shelf_path", None) and isinstance(param_general["dnn_shelf_path"], str):
             param_proxop["dnn_shelf_path"] = param_general["dnn_shelf_path"]
 
         # Adaptive network selection scheme
@@ -286,86 +286,59 @@ def set_imaging_params_ri(
             param_optimiser["im_peak_est"] = float(param_general["im_peak_est"])
         else:
             param_optimiser["im_peak_est"] = None
-        param_optimiser["dnn_adaptive_peak"] = param_general.get(
-            "dnn_adaptive_peak", True
-        )
+        param_optimiser["dnn_adaptive_peak"] = param_general.get("dnn_adaptive_peak", True)
         if (
             param_general.get("dnn_adaptive_peak_tol_max", None)
             and param_general["dnn_adaptive_peak_tol_max"] > 0
         ):
-            param_optimiser["dnn_adaptive_peak_tol_max"] = float(
-                param_general["dnn_adaptive_peak_tol_max"]
-            )
+            param_optimiser["dnn_adaptive_peak_tol_max"] = float(param_general["dnn_adaptive_peak_tol_max"])
         else:
             param_optimiser["dnn_adaptive_peak_tol_max"] = 0.1
         if (
             param_general.get("dnn_adaptive_peak_tol_min", None)
             and param_general["dnn_adaptive_peak_tol_min"] > 0
         ):
-            param_optimiser["dnn_adaptive_peak_tol_min"] = float(
-                param_general["dnn_adaptive_peak_tol_min"]
-            )
+            param_optimiser["dnn_adaptive_peak_tol_min"] = float(param_general["dnn_adaptive_peak_tol_min"])
         else:
             param_optimiser["dnn_adaptive_peak_tol_min"] = 1e-3
         if (
             param_general.get("dnn_adaptive_peak_tol_step", None)
             and param_general["dnn_adaptive_peak_tol_step"] > 0
         ):
-            param_optimiser["dnn_adaptive_peak_tol_step"] = float(
-                param_general["dnn_adaptive_peak_tol_step"]
-            )
+            param_optimiser["dnn_adaptive_peak_tol_step"] = float(param_general["dnn_adaptive_peak_tol_step"])
         else:
             param_optimiser["dnn_adaptive_peak_tol_step"] = 0.1
 
         # random input image flip & 90-degree rotation
-        param_proxop["dnn_apply_transform"] = param_general.get(
-            "dnn_apply_transform", True
-        )
+        param_proxop["dnn_apply_transform"] = param_general.get("dnn_apply_transform", True)
 
         # specific parameters for AIRI
         if param_optimiser["algorithm"] == "airi":
-            param_optimiser["approx_meas_op"] = param_general.get(
-                "approx_meas_op", False
-            )
+            param_optimiser["approx_meas_op"] = param_general.get("approx_meas_op", False)
 
     # parameters shared by SARA algorithms
     elif param_optimiser["algorithm"] in ["usara"]:
         # heuristic regularisation parameter scale
-        if (
-            param_general.get("heu_reg_param_scale", None)
-            and param_general["heu_reg_param_scale"] > 0
-        ):
-            param_optimiser["heu_reg_param_scale"] = float(
-                param_general["heu_reg_param_scale"]
-            )
+        if param_general.get("heu_reg_param_scale", None) and param_general["heu_reg_param_scale"] > 0:
+            param_optimiser["heu_reg_param_scale"] = float(param_general["heu_reg_param_scale"])
         else:
             param_optimiser["heu_reg_param_scale"] = 1.0
 
-        param_optimiser["reweighting_save"] = param_general.get(
-            "reweighting_save", False
-        )
-        if (
-            param_general.get("im_max_outer_itr", None)
-            and param_general["im_max_outer_itr"] >= 1
-        ):
+        param_optimiser["new_heu"] = param_general.get("new_heu", False)
+
+        param_optimiser["reweighting_save"] = param_general.get("reweighting_save", False)
+        if param_general.get("im_max_outer_itr", None) and param_general["im_max_outer_itr"] >= 1:
             param_optimiser["im_max_outer_itr"] = int(param_general["im_max_outer_itr"])
         else:
             param_optimiser["im_max_outer_itr"] = 20
-        if (
-            param_general.get("im_var_outer_tol", None)
-            and param_general["im_var_outer_tol"] > 0
-        ):
-            param_optimiser["im_var_outer_tol"] = float(
-                param_general["im_var_outer_tol"]
-            )
+        if param_general.get("im_var_outer_tol", None) and param_general["im_var_outer_tol"] > 0:
+            param_optimiser["im_var_outer_tol"] = float(param_general["im_var_outer_tol"])
         else:
             param_optimiser["im_var_outer_tol"] = 1e-3
 
         # specific parameters for uSARA
         if param_optimiser["algorithm"] == "usara":
-            param_optimiser["approx_meas_op"] = param_general.get(
-                "approx_meas_op", False
-            )
+            param_optimiser["approx_meas_op"] = param_general.get("approx_meas_op", False)
 
     # parameters shared by constrained algorithms
     if param_optimiser["algorithm"] in ["cairi"]:
@@ -373,14 +346,10 @@ def set_imaging_params_ri(
 
     # set path for saving results
     if not param_general.get("src_name", None):
-        param_general["src_name"] = os.path.splitext(
-            os.path.basename(param_general["data_file"])
-        )[0]
+        param_general["src_name"] = os.path.splitext(os.path.basename(param_general["data_file"]))[0]
     if not param_general.get("result_path", None):
         param_general["result_path"] = os.path.join(".", "results")
-    param_optimiser["result_path"] = os.path.join(
-        param_general["result_path"], param_general["src_name"]
-    )
+    param_optimiser["result_path"] = os.path.join(param_general["result_path"], param_general["src_name"])
     os.makedirs(param_optimiser["result_path"], exist_ok=True)
 
     file_prefix = ""
@@ -389,9 +358,7 @@ def set_imaging_params_ri(
     elif param_optimiser["algorithm"] == "cairi":
         file_prefix = "cAIRI_heuScale_" + str(param_optimiser["heu_noise_scale"]) + "_"
     elif param_optimiser["algorithm"] == "usara":
-        file_prefix = (
-            "uSARA_heuRegScale_" + str(param_optimiser["heu_reg_param_scale"]) + "_"
-        )
+        file_prefix = "uSARA_heuRegScale_" + str(param_optimiser["heu_reg_param_scale"]) + "_"
     if param_general.get("run_id", None):
         file_prefix += "runID_" + str(param_general["run_id"]) + "_"
     param_optimiser["file_prefix"] = file_prefix
