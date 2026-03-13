@@ -10,7 +10,8 @@ from astropy.io import fits
 from .prox_operator import ProxOpAIRI, ProxOpElipse, ProxOpSARAPos
 from .optimiser import FBAIRI, PDAIRI, FBSARA
 from .utils import gen_imaging_weight
-from .ri_measurement_operator.pysrc.utils.io import load_data_to_tensor
+# from .ri_measurement_operator.pysrc.utils.io import load_data_to_tensor
+from .ri_measurement_operator.pysrc.utils.io_new import load_data_to_tensor
 
 
 def imager(param_optimiser: Dict, param_measop: Dict, param_proxop: Dict) -> None:
@@ -46,14 +47,14 @@ def imager(param_optimiser: Dict, param_measop: Dict, param_proxop: Dict) -> Non
         img_size=param_measop["img_size"],
         uv_unit="radians",
         weight_type=param_measop["weight_type"],
-        weight_gridsize=param_measop["weight_gridsize"],
+        # weight_gridsize=param_measop["weight_gridsize"],
         weight_robustness=param_measop["weight_robustness"],
         dtype=param_measop["dtype"],
         device=param_measop["device"],
         verbose=param_optimiser["verbose"],
     )
     
-    if data["nFreqs"].item() == 1:
+    if data["nFreqs"] == 1:
         data["flag"] = data["flag"][:, 0, :].unsqueeze(1)
 
     if param_measop["use_ROP"]:
@@ -69,7 +70,7 @@ def imager(param_optimiser: Dict, param_measop: Dict, param_proxop: Dict) -> Non
                     data["flag"].shape[-1]
                     / (param_measop["ROP_param"]["Q"] * (param_measop["ROP_param"]["Q"] - 1))
                     * 2
-                    * data["nFreqs"].item()
+                    * data["nFreqs"]
                 )
             assert "B" in data, "number of snapshots B is not in data and not provided"
             param_measop["ROP_param"]["B"] = int(data["B"])
@@ -83,7 +84,7 @@ def imager(param_optimiser: Dict, param_measop: Dict, param_proxop: Dict) -> Non
                 data["flag"].shape[-1]
                 / (param_measop["ROP_param"]["Q"] * (param_measop["ROP_param"]["Q"] - 1))
                 * 2
-                * data["nFreqs"].item()
+                * data["nFreqs"]
             )
         if param_measop["ROP_param"]["Q"] is not None and "Q" not in data:
             data["Q"] = param_measop["ROP_param"]["Q"]
@@ -121,8 +122,8 @@ def imager(param_optimiser: Dict, param_measop: Dict, param_proxop: Dict) -> Non
 
         flag = np.concatenate(
             [
-                data["flag"].numpy(force=True)[0, iFreq, :]
-                for iFreq in range(data["flag"].numpy(force=True).shape[1])
+                data["flag"][0, iFreq, :]
+                for iFreq in range(data["flag"].shape[1])
             ]
         )
 
@@ -191,7 +192,7 @@ def imager(param_optimiser: Dict, param_measop: Dict, param_proxop: Dict) -> Non
             ROP_param=param_measop["ROP_param"],
             u=data["u"],
             v=data["v"],
-            flag=data["flag"].numpy(force=True),
+            flag=data["flag"],
             img_size=param_measop["img_size"],
             natural_weight=data["nW"],
             image_weight=data["nWimag"],
@@ -217,7 +218,7 @@ def imager(param_optimiser: Dict, param_measop: Dict, param_proxop: Dict) -> Non
             ROP_param=param_measop["ROP_param"],
             u=data["u"],
             v=data["v"],
-            flag=data["flag"].numpy(force=True),
+            flag=data["flag"],
             img_size=param_measop["img_size"],
             natural_weight=data["nW"],
             image_weight=data["nWimag"],
@@ -264,8 +265,8 @@ def imager(param_optimiser: Dict, param_measop: Dict, param_proxop: Dict) -> Non
             ROP_param=param_measop["ROP_param"],
             u=data["u"],
             v=data["v"],
-            num_chs=data["nFreqs"].item(),
-            flag=data["flag"].numpy(force=True),
+            num_chs=data["nFreqs"],
+            flag=data["flag"],
             img_size=param_measop["img_size"],
             natural_weight=data["nW"],
             image_weight=data["nWimag"],

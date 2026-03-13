@@ -150,6 +150,7 @@ def set_imaging_params_ri(
             "P": param_general["ROP_P"],
             "M": param_general["ROP_M"],
             "N_ratio": param_general.get("ROP_N_ratio", 1.0),
+            "epsilon_n": param_general.get("ROP_epsilon_n", 1.0),
             "Q": param_general.get("ROP_Q", None),
             "B": param_general.get("ROP_B", None),
             "rv_type": param_general["ROP_rv_type"],

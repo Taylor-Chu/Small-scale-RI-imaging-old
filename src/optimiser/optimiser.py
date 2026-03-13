@@ -37,16 +37,23 @@ class Optimiser(ABC):
             file_prefix (str, optional): The prefix of the saving files. Defaults to None.
         """
         self._meas_op = meas_op
-        self._meas = meas.to(self._meas_op.get_data_type_meas())
+        try:
+            self._meas = meas.to(self._meas_op.get_data_type_meas())
+        except:
+            self._meas = meas
         self._save_pth = save_pth
         self._file_prefix = file_prefix
 
         # common initialisation
+        if type(self._meas_op.get_device()) == list:
+            device = self._meas_op.get_device()[0]
+        else:
+            device = self._meas_op.get_device()
         self._meas_bp = torch.zeros(
             1,
             1,
             *self._meas_op.get_img_size(),
-            device=self._meas_op.get_device(),
+            device=device,
             dtype=self._meas_op.get_data_type()
         )
         self._model = torch.zeros_like(self._meas_bp)

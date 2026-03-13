@@ -10,11 +10,10 @@ from astropy.io import fits
 from .prox_operator import ProxOpAIRI, ProxOpElipse, ProxOpSARAPos
 from .optimiser import FBAIRI, PDAIRI, FBSARA
 from .utils import gen_imaging_weight
-from .utils.io_3c273 import load_data_to_tensor
-from .mrop_ri_measurement_operator.src.utils.solve_epsilon import solve_epsilon_diff_ab
-from .ri_measurement_operator.pysrc.measOperator.meas_op_nufft_pytorch_finufft import MeasOpPytorchFinufft
-from .mrop_ri_measurement_operator.src.mrop_vmap_mf_mod_KB import create_meas_op_ROP_vmap_mod_KB as create_meas_op_ROP
-from .mrop_ri_measurement_operator import weighting_correction
+# from .ri_measurement_operator.pysrc.utils.io import load_data_to_tensor
+# from .ri_measurement_operator.pysrc.utils.io_new import load_data_to_tensor
+from .ri_measurement_operator.pysrc.utils.io_meerkat import load_real_data_to_tensor
+from .ri_measurement_operator.pysrc.measOperator.meas_op_nufft_pytorch_finufft_wstacking import MeasOpPytorchFinufftWStacking
 
 
 def imager(param_optimiser: Dict, param_measop: Dict, param_proxop: Dict) -> None:
@@ -40,106 +39,80 @@ def imager(param_optimiser: Dict, param_measop: Dict, param_proxop: Dict) -> Non
             and 'verbose'.
     """
     # initialisation
-
-    data = load_data_to_tensor(
-        main_data_file=param_optimiser["data_file"],
-        data_path="/".join(param_optimiser["data_file"].split("/")[:-1]),
-        super_resolution=param_measop["superresolution"],
-        data_weighting=param_measop["flag_data_weighting"],
-        load_weight=param_measop["weight_load"],
+    
+    # data = load_data_to_tensor(
+    #     param_optimiser["data_file"],
+    #     super_resolution=param_measop["superresolution"],
+    #     image_pixel_size=param_measop["im_pixel_size"],
+    #     data_weighting=param_measop["flag_data_weighting"],
+    #     load_weight=param_measop["weight_load"],
+    #     img_size=param_measop["img_size"],
+    #     uv_unit="radians",
+    #     weight_type=param_measop["weight_type"],
+    #     # weight_gridsize=param_measop["weight_gridsize"],
+    #     weight_robustness=param_measop["weight_robustness"],
+    #     dtype=param_measop["dtype"],
+    #     device=param_measop["device"],
+    #     verbose=param_optimiser["verbose"],
+    # )
+    
+    data = load_real_data_to_tensor(
+        data_path=param_optimiser["data_file"],
+        # super_resolution=args.super_resolution,
+        image_pixel_size=param_measop["im_pixel_size"],
         img_size=param_measop["img_size"],
+        # start_ch=105,
+        # end_ch=115,
+        data_weighting=param_measop["flag_data_weighting"],
         weight_type=param_measop["weight_type"],
         weight_robustness=param_measop["weight_robustness"],
-        nfreqs=None,
-        freq_num=None,
-        use_ROP=param_measop["use_ROP"],
-        vis_remove=17.7,
-        # dl_shift=128,
-        # dm_shift=-128,
-        dtype=param_measop["dtype"],
-        device=param_measop["device"],
-        # verbose=param_optimiser["verbose"],
     )
-
-    if data["nFreqs"] == 1:
-        data["flag"] = data["flag"][:, 0, :].unsqueeze(1)
-        
-        
-
-    if param_measop["ROP_param"]["Q"] is None:
-        assert "Q" in data, "number of anntennas Q is not in data and not provided"
-        param_measop["ROP_param"]["Q"] = int(data["Q"])
-
-    N = int(np.prod(param_measop["img_size"]))
-    K = int(data["nFreqs"])
-    V = int(param_measop["ROP_param"]["Q"] * (param_measop["ROP_param"]["Q"] - 1) // 2)
-    B = data["B_per_ch"]
-    Q = int(param_measop["ROP_param"]["Q"])
-
-    print(f"INFO: Original dimensions: N = {N}, V = {V}, K = {K}, B = {B}, N_ratio = {param_measop["ROP_param"]["N_ratio"]}.")
-    epsilon, P, M_B, M_K = solve_epsilon_diff_ab(N, Q, B, K, param_measop["ROP_param"]["N_ratio"])
-
-    print(
-        f"INFO: Calculated epsilon for MROP modulation dimensions: {epsilon:.4f} (epsilon = (N / VBK)^(1/4))."
-    )
-    param_measop["ROP_param"]["M_K"] = M_K
-    param_measop["ROP_param"]["M_B"] = M_B
-    param_measop["ROP_param"]["P"] = P
-    param_measop["ROP_param"]["M"] = M_K * M_B
     
-    print(
-        f"INFO: MROP set with P = {param_measop["ROP_param"]["P"]}, M_K = {param_measop["ROP_param"]["M_K"]}, M_B = {param_measop["ROP_param"]["M_B"]}, M = {param_measop["ROP_param"]["M"]}."
+    fov_radians = (
+        (data["image_pixel_size"] / 3600) * param_measop["img_size"][0] * np.pi / 180,
+        (data["image_pixel_size"] / 3600) * param_measop["img_size"][1] * np.pi / 180,
     )
-    print(
-        f"INFO: PM / N = {param_measop["ROP_param"]["P"] * param_measop["ROP_param"]["M"] / N:.4f}",
-        flush=True,
+    
+    num_wstacks = np.ceil(
+        data["w"].numpy(force=True).max() * 2 * np.pi * (1 - np.sqrt(1 - 2 * np.sin(fov_radians[0] / 2) ** 2))
     )
-
-    if param_measop["ROP_param"]["B"] is None:
-        if "flag" in data and data["flag"] is not None and "B" not in data:
-            data["B"] = data["flag"].shape[-1] / V * K
-        assert "B" in data, "number of snapshots B is not in data and not provided"
-        param_measop["ROP_param"]["B"] = int(data["B"])
-    data, weight_corr = weighting_correction(data, param_measop["ROP_param"])
-    print(
-        f"INFO: Correction has been applied to the weighting for {param_measop['ROP_param']['ROP_type']}",
-        flush=True,
-    )
-
-    meas_op = None
-
-    nufft_op = create_meas_op_ROP(MeasOpPytorchFinufft)
-
-    meas_op = nufft_op(
-        ROP_param=param_measop["ROP_param"],
+    w_max = data["w"].numpy(force=True).max()
+    num_wstacks = int(max(num_wstacks, torch.cuda.device_count()))
+    print(f"INFO: FOV in radians: {fov_radians}, max w value: {w_max:.4f}, number of w-stacks determined to be {num_wstacks} based on the FOV and max w value.", flush=True)
+    assert torch.cuda.is_available()
+    num_gpus = torch.cuda.device_count()
+    print(f"Found {num_gpus} GPUs")
+    
+    # meas_op = None
+    meas_op = MeasOpPytorchFinufftWStacking(
         u=data["u"],
         v=data["v"],
-        num_chs=data["nFreqs"],
-        # flag=data["flag"].numpy(force=True),
-        ant1=data["ant1"],
-        ant2=data["ant2"],
-        batches=data["batches"],
+        w=data["w"],
+        image_pixel_size=param_measop["im_pixel_size"],
+        num_wstacks=num_wstacks,
         img_size=param_measop["img_size"],
         natural_weight=data["nW"],
         image_weight=data["nWimag"],
+        real_flag=True,
         device=param_measop["device"],
+        device_list=[param_measop["device"]],
         dtype=param_measop["dtype"],
+        kmeans_pkg="sklearn",
     )
-
-    if param_measop["use_ROP"]:
-        print(
-            f"INFO: data size before {param_measop['ROP_param']['ROP_type']} is {data['y'].numel()}",
-            flush=True,
+    
+    y = [
+        (
+            data["y"][..., meas_op._w_stack_idx == i]
+            * data["nW"][..., meas_op._w_stack_idx == i]
+            * data["nWimag"][..., meas_op._w_stack_idx == i]
         )
-        if param_measop["ROP_param"]["ROP_type"] == "MROP":
-            data["y"] = meas_op.MD(data["y"] * weight_corr)
-        elif param_measop["ROP_param"]["ROP_type"] == "CROP":
-            data["y"] = meas_op.D(data["y"] * weight_corr)
-        print(
-            f"INFO: data size after {param_measop['ROP_param']['ROP_type']} is {data['y'].numel()}",
-            flush=True,
-        )
-
+        .to(meas_op._device[i])
+        .view(1, 1, -1)
+        for i in range(num_wstacks)
+    ]
+    torch.cuda.synchronize()
+    torch.cuda.empty_cache()
+    
     meas_op_approx = None
     if param_optimiser["approx_meas_op"]:
         from .ri_measurement_operator.pysrc.measOperator.meas_op_PSF import MeasOpPSF
@@ -167,7 +140,7 @@ def imager(param_optimiser: Dict, param_measop: Dict, param_proxop: Dict) -> Non
         )
 
         optimiser = FBAIRI(
-            data["y"],
+            y,
             meas_op,
             prox_op_airi,
             meas_op_approx=meas_op_approx,
@@ -214,7 +187,7 @@ def imager(param_optimiser: Dict, param_measop: Dict, param_proxop: Dict) -> Non
             precond_weight = torch.ones(1, 1)
 
         # Theoretical l2 error bound, assume chi-square distribution, tau=1
-        l2_bound = np.sqrt(torch.numel(data["y"]) + 2.0 * np.sqrt(torch.numel(data["y"])))
+        l2_bound = np.sqrt(torch.numel(y) + 2.0 * np.sqrt(torch.numel(y)))
         if param_optimiser["verbose"]:
             print(
                 "INFO: The theoretical l2 error bound is",
@@ -222,7 +195,7 @@ def imager(param_optimiser: Dict, param_measop: Dict, param_proxop: Dict) -> Non
             )
 
         prox_op_dual_data = ProxOpElipse(
-            center=data["y"],
+            center=y,
             precond_weight=precond_weight,
             radius=l2_bound,
             device=meas_op.get_device(),
@@ -230,7 +203,7 @@ def imager(param_optimiser: Dict, param_measop: Dict, param_proxop: Dict) -> Non
         )
 
         optimiser = PDAIRI(
-            data["y"],
+            y,
             meas_op,
             prox_op_airi,
             prox_op_dual_data,
@@ -258,7 +231,7 @@ def imager(param_optimiser: Dict, param_measop: Dict, param_proxop: Dict) -> Non
         )
 
         optimiser = FBSARA(
-            data["y"],
+            y,
             meas_op,
             prox_op_sara,
             use_ROP=param_measop["use_ROP"],
