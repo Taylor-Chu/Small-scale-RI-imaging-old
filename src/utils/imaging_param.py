@@ -36,7 +36,7 @@ def set_imaging_params_ri(
     param_optimiser["data_file"] = param_general["data_file"]
     param_optimiser["use_s3"] = param_general.get("use_s3", False)
     param_optimiser["s3_bucket_name"] = param_general.get("s3_bucket_name", None)
-    param_optimiser["tmp_dir"] = param_general.get("/tmp", None)
+    param_optimiser["tmp_dir"] = param_general.get("tmp_dir", None)
     param_optimiser["src_name"] = param_general.get("src_name", None)
     # set default values
     param_optimiser["flag_imaging"] = param_general.get("flag_imaging", True)
@@ -263,8 +263,11 @@ def set_imaging_params_ri(
     else:
         param_optimiser["itr_save"] = param_optimiser["im_max_itr"] + 1
 
-    if param_general.get("groundtruth", None) and os.path.isfile(param_general["groundtruth"]):
-        param_optimiser["groundtruth"] = param_general["groundtruth"]
+    if param_general.get("groundtruth", None):
+        if not param_optimiser["use_s3"] and os.path.isfile(param_general["groundtruth"]):
+            param_optimiser["groundtruth"] = param_general["groundtruth"]
+        elif param_optimiser["use_s3"]:
+            param_optimiser["groundtruth"] = param_general["groundtruth"]
     else:
         param_optimiser["groundtruth"] = None
 
