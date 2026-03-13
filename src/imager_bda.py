@@ -19,10 +19,6 @@ from .utils import gen_imaging_weight
 from .ri_measurement_operator.pysrc.utils.io_new import load_data_to_tensor
 from .utils.bda_averaging import (
     apply_bda,
-    # compute_baseline_lengths,
-    # load_visibilities,
-    # load_uv_coordinates,
-    # load_natural_weights,
     average_visibilities,
     average_natural_weights,
 )
@@ -59,6 +55,23 @@ def imager(param_optimiser: Dict, param_measop: Dict, param_proxop: Dict) -> Non
     # initialisation
 
     # data_path = os.path.dirname(param_optimiser["data_file"])
+    
+    # download data file if it's on s3 and not local
+    # download data file if it's on s3 and not local
+    if param_optimiser["use_s3"]:
+        import os
+        from .utils.s3_utils import download_file_from_s3
+        # tmp_dir = param_optimiser["tmp_dir"]
+        tmp_dir = os.path.join(param_optimiser["tmp_dir"], param_optimiser["src_name"])
+        os.makedirs(tmp_dir, exist_ok=True)
+        og_data_file = param_optimiser["data_file"]
+        param_optimiser["data_file"] = os.path.join(tmp_dir, os.path.basename(param_optimiser["data_file"]))
+        download_file_from_s3(og_data_file, param_optimiser["data_file"])
+        if param_optimiser["groundtruth"] is not None:
+            og_groundtruth = param_optimiser["groundtruth"]
+            param_optimiser["groundtruth"] = os.path.join(tmp_dir, os.path.basename(param_optimiser["groundtruth"]))
+            download_file_from_s3(og_groundtruth, param_optimiser["groundtruth"])
+            
     data = loadmat(param_optimiser["data_file"])
 
     data_classical = load_data_to_tensor(

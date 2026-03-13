@@ -81,12 +81,12 @@ def imager(param_optimiser: Dict, param_measop: Dict, param_proxop: Dict) -> Non
     Q = int(param_measop["ROP_param"]["Q"])
     
     print(f"INFO: Original dimensions: N = {N}, Q = {Q}, K = {K}, B = {B}, N_ratio = {param_measop["ROP_param"]["N_ratio"]}.")
-    epsilon, P_Q, M_B, M_K = solve_epsilon_same_aa(N, param_measop["ROP_param"]["Q"], B, K, param_measop["ROP_param"]["N_ratio"])
+    epsilon, P_Q, M_B, M_K = solve_epsilon_same_aa(N, param_measop["ROP_param"]["Q"], B, K, param_measop["ROP_param"]["N_ratio"], param_measop["ROP_param"]["epsilon_n"])
 
     print(f"INFO: Calculated epsilon for MROP modulation dimensions: {epsilon:.4f} (epsilon = (N / Q^2VK)^(1/4)).")
     param_measop["ROP_param"]["M_K"] = M_K
     param_measop["ROP_param"]["M_B"] = M_B
-    param_measop["ROP_param"]["P"] = P_Q * (P_Q - 1) // 2
+    param_measop["ROP_param"]["P"] = P_Q #* (P_Q - 1) // 2
     param_measop["ROP_param"]["M"] = M_K * M_B
     print(f"INFO: MROP set with P = {param_measop["ROP_param"]["P"]}, M_K = {param_measop["ROP_param"]["M_K"]}, M_B = {param_measop["ROP_param"]["M_B"]}, M = {param_measop["ROP_param"]["M"]}.")
     print(f"INFO: PM / N = {param_measop["ROP_param"]["P"] * param_measop["ROP_param"]["M"] / N:.4f}", flush=True)

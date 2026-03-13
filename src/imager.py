@@ -4,6 +4,7 @@ Prepare proper measurement operator, prior and algorithm for imaging task
 
 from typing import Dict
 import torch
+import os
 import numpy as np
 from astropy.io import fits
 
@@ -38,6 +39,21 @@ def imager(param_optimiser: Dict, param_measop: Dict, param_proxop: Dict) -> Non
     """
     # initialisation
     
+    # download data file if it's on s3 and not local
+    if param_optimiser["use_s3"]:
+        import os
+        from .utils.s3_utils import download_file_from_s3
+        # tmp_dir = param_optimiser["tmp_dir"]
+        tmp_dir = os.path.join(param_optimiser["tmp_dir"], param_optimiser["src_name"])
+        os.makedirs(tmp_dir, exist_ok=True)
+        og_data_file = param_optimiser["data_file"]
+        param_optimiser["data_file"] = os.path.join(tmp_dir, os.path.basename(param_optimiser["data_file"]))
+        download_file_from_s3(og_data_file, param_optimiser["data_file"])
+        if param_optimiser["groundtruth"] is not None:
+            og_groundtruth = param_optimiser["groundtruth"]
+            param_optimiser["groundtruth"] = os.path.join(tmp_dir, os.path.basename(param_optimiser["groundtruth"]))
+            download_file_from_s3(og_groundtruth, param_optimiser["groundtruth"])
+    
     data = load_data_to_tensor(
         param_optimiser["data_file"],
         super_resolution=param_measop["superresolution"],
@@ -47,7 +63,6 @@ def imager(param_optimiser: Dict, param_measop: Dict, param_proxop: Dict) -> Non
         img_size=param_measop["img_size"],
         uv_unit="radians",
         weight_type=param_measop["weight_type"],
-        # weight_gridsize=param_measop["weight_gridsize"],
         weight_robustness=param_measop["weight_robustness"],
         dtype=param_measop["dtype"],
         device=param_measop["device"],
@@ -78,101 +93,6 @@ def imager(param_optimiser: Dict, param_measop: Dict, param_proxop: Dict) -> Non
         print(
             f"INFO: Correction has been applied to the weighting for {param_measop['ROP_param']['ROP_type']}", flush=True
         )
-    elif param_measop["use_BDA"]:
-        if "flag" in data and data["flag"] is not None and "B" not in data:
-            data["B"] = int(
-                data["flag"].shape[-1]
-                / (param_measop["ROP_param"]["Q"] * (param_measop["ROP_param"]["Q"] - 1))
-                * 2
-                * data["nFreqs"]
-            )
-        if param_measop["ROP_param"]["Q"] is not None and "Q" not in data:
-            data["Q"] = param_measop["ROP_param"]["Q"]
-        assert "B" in data, "number of baselines B is not in data and not provided"
-        assert "Q" in data, "number of anntennas Q is not in data and not provided"
-
-        from .utils.bda import gen_BDA, symmetrisation
-
-        # if param_optimiser["nfreqs"] is not None:
-        #     assert param_optimiser["nfreqs"] == 1, "BDA is only implemented for single frequency data"
-        # print("SR=", data["super_resolution"])
-        # W_bda, u_s, v_s, I_s_i, I_s_j, B, Q = gen_BDA(
-        W_bda, u_s, v_s, I_s, B, Q, y, nW = gen_BDA(
-            data_file=param_optimiser["data_file"],
-            # data_path=param_optimiser["data_path"],
-            # freq_num= 1 if param_optimiser["freq_num"] is None else param_optimiser["freq_num"],
-            # vla=True,
-            # data=data,
-            B=data["B"],
-            Q=data["Q"],
-            uv_pt="avg",
-            start_zone=1,
-            start_num=1,
-            # sr_factor=data["super_resolution"],
-            # return_B=False
-        )
-
-        # I_s = torch.sparse_coo_tensor(
-        #     indices=torch.stack([I_s_i.ravel(), I_s_j.ravel()]),
-        #     values=torch.ones(len(I_s_i.ravel())),
-        #     size=(u_s.numel(), B * Q**2),
-        #     dtype=torch.complex128,
-        #     is_coalesced=True,
-        # )
-
-        flag = np.concatenate(
-            [
-                data["flag"][0, iFreq, :]
-                for iFreq in range(data["flag"].shape[1])
-            ]
-        )
-
-        y = symmetrisation(
-            y,
-            data["B"],
-            data["Q"],
-            flag,
-        )
-        nW = symmetrisation(
-            nW,
-            data["B"],
-            data["Q"],
-            flag,
-        )
-
-        data["y"] = (I_s @ y.to(I_s.device).ravel()) / W_bda
-        print(f"INFO: BDA averaged size: {W_bda.numel()}", flush=True)
-
-        data["y"] = data["y"].view(1, 1, -1)
-        data["nW"] = (I_s @ nW.to(device=I_s.device, dtype=I_s.dtype).ravel()) / W_bda
-        # data["nW"] = (data["nW"].to(data["y"].device) * torch.ones_like(data["y"])) * torch.sqrt(W_bda)
-        data["u"] = u_s.to(device=I_s.device).view(1, 1, -1)
-        data["v"] = v_s.to(device=I_s.device).view(1, 1, -1)
-        data["y"] *= data["nW"].view(1, 1, -1)
-        # data["nW"] = data["nW"].view(1, 1, -1)
-
-        if param_measop["flag_data_weighting"]:
-            from .ri_measurement_operator.pysrc.utils.gen_imaging_weights import gen_imaging_weights
-
-            data["nWimag"] = gen_imaging_weights(
-                data["u"].clone(),
-                data["v"].clone(),
-                data["nW"].clone(),
-                param_measop["img_size"],
-                weight_type=param_measop["weight_type"],
-                weight_gridsize=param_measop["weight_gridsize"],
-                weight_robustness=param_measop["weight_robustness"],
-            ).view(1, 1, -1)
-        else:
-            data["nWimag"] = torch.tensor(
-                [1.0], dtype=param_measop["dtype"], device=param_measop["device"]
-            ).view(1, 1, -1)
-            
-        data["y"] *= data["nWimag"]
-        
-        for k in ["y", "u", "v", "nW", "nWimag"]:
-            data[k] = data[k].to(param_measop["device"]).view(1, 1, -1)
-        print("INFO: BDA applied in measurement operator and data", flush=True)
 
     meas_op = None
 

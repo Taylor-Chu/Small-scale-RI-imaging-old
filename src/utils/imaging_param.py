@@ -34,6 +34,10 @@ def set_imaging_params_ri(
     # parameters shared by all algorithms
     param_optimiser["algorithm"] = param_general["algorithm"]
     param_optimiser["data_file"] = param_general["data_file"]
+    param_optimiser["use_s3"] = param_general.get("use_s3", False)
+    param_optimiser["s3_bucket_name"] = param_general.get("s3_bucket_name", None)
+    param_optimiser["tmp_dir"] = param_general.get("/tmp", None)
+    param_optimiser["src_name"] = param_general.get("src_name", None)
     # set default values
     param_optimiser["flag_imaging"] = param_general.get("flag_imaging", True)
     param_proxop["verbose"] = param_general.get("verbose", True)

@@ -48,6 +48,21 @@ def imager(param_optimiser: Dict, param_measop: Dict, param_proxop: Dict) -> Non
             and 'verbose'.
     """
     # initialisation
+    
+    # download data file if it's on s3 and not local
+    if param_optimiser["use_s3"]:
+        import os
+        from .utils.s3_utils import download_file_from_s3
+        # tmp_dir = param_optimiser["tmp_dir"]
+        tmp_dir = os.path.join(param_optimiser["tmp_dir"], param_optimiser["src_name"])
+        os.makedirs(tmp_dir, exist_ok=True)
+        og_data_file = param_optimiser["data_file"]
+        param_optimiser["data_file"] = os.path.join(tmp_dir, os.path.basename(param_optimiser["data_file"]))
+        download_file_from_s3(og_data_file, param_optimiser["data_file"])
+        if param_optimiser["groundtruth"] is not None:
+            og_groundtruth = param_optimiser["groundtruth"]
+            param_optimiser["groundtruth"] = os.path.join(tmp_dir, os.path.basename(param_optimiser["groundtruth"]))
+            download_file_from_s3(og_groundtruth, param_optimiser["groundtruth"])
 
     data = load_data_to_tensor(
         param_optimiser["data_file"],
@@ -58,7 +73,6 @@ def imager(param_optimiser: Dict, param_measop: Dict, param_proxop: Dict) -> Non
         img_size=param_measop["img_size"],
         uv_unit="radians",
         weight_type=param_measop["weight_type"],
-        # weight_gridsize=param_measop["weight_gridsize"],
         weight_robustness=param_measop["weight_robustness"],
         dtype=param_measop["dtype"],
         device=param_measop["device"],
@@ -121,9 +135,6 @@ def imager(param_optimiser: Dict, param_measop: Dict, param_proxop: Dict) -> Non
         v=data["v"],
         num_chs=data["nFreqs"],
         flag=data["flag"],
-        # ant1=data["ant1"],
-        # ant2=data["ant2"],
-        # batches=data["batches"],
         img_size=param_measop["img_size"],
         natural_weight=data["nW"],
         image_weight=data["nWimag"],
