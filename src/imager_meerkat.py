@@ -9,7 +9,7 @@ import numpy as np
 from astropy.io import fits
 
 from .prox_operator import ProxOpAIRI, ProxOpElipse, ProxOpSARAPos
-from .optimiser import FBAIRI, PDAIRI, FBSARA
+from .optimiser import FBAIRI, PDAIRI, FBSARAMEERKAT
 from .utils import gen_imaging_weight
 # from .ri_measurement_operator.pysrc.utils.io import load_data_to_tensor
 # from .ri_measurement_operator.pysrc.utils.io_new import load_data_to_tensor
@@ -56,6 +56,8 @@ def imager(param_optimiser: Dict, param_measop: Dict, param_proxop: Dict) -> Non
     data["y"] = data["y"].to(param_measop["device"])
     data["nW"] = data["nW"].to(param_measop["device"])
     data["nWimag"] = data["nWimag"].to(param_measop["device"])
+    
+    data["y"] = data["y"] * data["nW"] * data["nWimag"]
     
     fov_radians = (
         (data["image_pixel_size"] / 3600) * param_measop["img_size"][0] * np.pi / 180,
@@ -235,7 +237,7 @@ def imager(param_optimiser: Dict, param_measop: Dict, param_proxop: Dict) -> Non
             verbose=param_proxop["verbose"],
         )
 
-        optimiser = FBSARA(
+        optimiser = FBSARAMEERKAT(
             data["y"],
             meas_op,
             prox_op_sara,

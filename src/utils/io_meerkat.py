@@ -2,6 +2,28 @@ import torch
 import numpy as np
 import gc
 
+def _load_single_channel(args):
+    """Helper function to load a single channel in parallel."""
+    import os
+    from scipy.io import loadmat
+    from scipy.constants import speed_of_light
+    
+    data_path, ch_idx, start_ch, u, v, w, wavelength = args
+    
+    ch_data = loadmat(os.path.join(data_path, f"_data_ch_{ch_idx+1}.mat"))
+    ch_flag = ch_data["flag"].astype(bool).squeeze()
+    
+    if ch_data["data_I"].size > 0:
+        return {
+            "u": u[ch_flag] / wavelength,
+            "v": v[ch_flag] / wavelength,
+            "w": w[ch_flag] / wavelength,
+            "data": ch_data["data_I"].squeeze(),
+            "nW": ch_data["weightsNat"].squeeze(),
+        }
+    else:
+        return None
+
 def load_real_data_to_tensor(
     data_path: str,
     start_ch: int = 0,
