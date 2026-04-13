@@ -58,8 +58,8 @@ def imager(param_optimiser: Dict, param_measop: Dict, param_proxop: Dict) -> Non
         freq_num=None,
         use_ROP=param_measop["use_ROP"],
         vis_remove=17.7,
-        # dl_shift=128,
-        # dm_shift=-128,
+        dl_shift=param_measop["dl_shift"], #128 
+        dm_shift=param_measop["dm_shift"], #-128
         dtype=param_measop["dtype"],
         device=param_measop["device"],
         # verbose=param_optimiser["verbose"],

@@ -56,6 +56,16 @@ def set_imaging_params_ri(
         )
     else:
         param_measop["img_size"] = (512, 512)
+    
+    if param_general.get("dl_shift", None):
+        param_measop["dl_shift"] = int(param_general["dl_shift"])
+    else:
+        param_measop["dl_shift"] = 0
+    
+    if param_general.get("dm_shift", None):
+        param_measop["dm_shift"] = int(param_general["dm_shift"])
+    else:
+        param_measop["dm_shift"] = 0
 
     # image pixel size
     if param_general.get("im_pixel_size", None) and param_general["im_pixel_size"] > 0.0:
@@ -347,6 +357,10 @@ def set_imaging_params_ri(
         # specific parameters for uSARA
         if param_optimiser["algorithm"] == "usara":
             param_optimiser["approx_meas_op"] = param_general.get("approx_meas_op", False)
+            
+    param_measop["meas_op_norm"] = param_general.get("meas_op_norm", None)
+    param_measop["heu_corr_factor"] = param_general.get("heu_corr_factor", None)
+    param_measop["wcentres_mat_file"] = param_general.get("wcentres_mat_file", None)   
 
     # parameters shared by constrained algorithms
     if param_optimiser["algorithm"] in ["cairi"]:
